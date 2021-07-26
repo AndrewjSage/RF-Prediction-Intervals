@@ -18,7 +18,7 @@ library(gridExtra)
 
 # Define UI ----
 ui <- fluidPage(
-  titlePanel("Basic widgets"),
+  titlePanel("Random Forest Prediction Intervals"),
   
   fluidRow(
     column(4, 
@@ -49,12 +49,14 @@ server <- function(input, output){
    
    ntrain <- 100
    ntest <- 100
-   alpha = 0.2
+   alpha = 0.1
    N <- ntrain + ntest
    
    
    #x1 <- rnorm(ntrain + ntest, 0, 1)
-   x1 <- seq(from=-5, to=5, by=10/(ntrain+ntest))
+   ep1 <- -1
+   ep2 <- 1
+   x1 <- seq(from=ep1, to=ep2, by=(ep2-ep1)/(ntrain+ntest))
    x1 <- x1[sample(1:length(x1))]
    x1 <- x1[1:(ntrain+ntest)]
    #x2 <- rnorm(ntrain + ntest, 0, 1)
@@ -62,9 +64,9 @@ server <- function(input, output){
    #x4 <- rnorm(ntrain + ntest, 0, 1)
    #x5 <- rnorm(ntrain + ntest, 0, 1)
    e1 <- rnorm(ntrain + ntest, 0, 1)  
-   e2 <- rexp(ntrain + ntest, rate=1/20) - 20
+   e2 <- rexp(ntrain + ntest, rate=1/10) - 10
    e <- (1-b)*e1 + b*e2 # convex combination of errors
-   y <- 3*x1 + a/10*x1^2 + a/50*(x1^3)*(a>1.5) + a*(x1>0)*(a>3) + e + e*(c*(abs(x1))) 
+   y <- 3*x1 + a*x1^2 + a*(x1^3)*(a>1.5) + a*(x1>0)*(a>3) + e + e/100*(c*(abs(x1))) 
 
    Data <- data.frame(x1, y)
    Train <- Data[1:ntrain, ]
@@ -81,7 +83,7 @@ server <- function(input, output){
    Cov_LM <- mean(LM_Contains)
    Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
    
-   RF <- quantreg(data=Train, formula = y~., nodesize=1, method="forest", prob=c(alpha/2, 1-alpha/2))
+   RF <- quantreg(data=Train, formula = y~., nodesize=ntrain/50, method="forest", prob=c(alpha/2, 1-alpha/2))
    RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(alpha/2, 1-alpha/2))
    RFpred <- RFpredinfo$predicted
    MSPE_RF <- mean((RFpred - Test$y)^2)
@@ -114,7 +116,7 @@ server <- function(input, output){
    names(Trainx) <- "x1"
    Testx <- data.frame(Test$x1)
    names(Testx) <- "x1"
-   QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE)
+   QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, nodesize=ntrain/10)
    QRFpred <- predict(QRF, newdata = Testx, what=mean)
    #mean((QRFpred - Test$y)^2)
    QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
@@ -135,17 +137,17 @@ server <- function(input, output){
    rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
 
    #Plot <- qplot(Test$x1, Test$y)
-   p1<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=LM_Contains)) + geom_line(aes(x=x1, y=LM_PI[,1]), color="red")
-   p1<-p1+geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV")
+   p1<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=LM_Contains)) + geom_line(aes(x=x1, y=LM_PI[,1]), color="red") + ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p1<-p1+geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
    
-   p2<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF2_Contains)) + geom_line(aes(x=x1, y=RF_PI2[,1]), color="red")
-   p2<-p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Norm., CV")
+   p2<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF2_Contains)) + geom_line(aes(x=x1, y=RF_PI2[,1]), color="red")+ ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p2<-p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Norm., CV") + theme(legend.position = "none")
    
-   p3<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF_Contains)) + geom_line(aes(x=x1, y=RF_PI[,1]), color="red")
-   p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes CV")
+   p3<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF_Contains)) + geom_line(aes(x=x1, y=RF_PI[,1]), color="red")+ ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes CV") + theme(legend.position = "none")
    
-   p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=QRF_Contains)) + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")
-   p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3")
+   p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=QRF_Contains)) + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")+ ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3") + theme(legend.position = "none")
    
    Plots <- grid.arrange(p1, p2, p3, p4, ncol=2)
    return(list(Plots, Res_Table))
