@@ -1,5 +1,5 @@
 
-a <- 3; b<-1; c<-5
+a <- 0; b<-0; c<-0
 
 ntrain <- 1000
 ntest <- 1000
@@ -10,16 +10,21 @@ N <- ntrain + ntest
 x1 <- seq(from=-5, to=5, by=10/(ntrain+ntest))
 x1 <- x1[sample(1:length(x1))]
 x1 <- x1[1:(ntrain+ntest)]
-#x2 <- rnorm(ntrain + ntest, 0, 1)
-#x3 <- rnorm(ntrain + ntest, 0, 1)
-#x4 <- rnorm(ntrain + ntest, 0, 1)
-#x5 <- rnorm(ntrain + ntest, 0, 1)
+x2 <- rnorm(ntrain + ntest, 0, 1)
+x3 <- rnorm(ntrain + ntest, 0, 1)
+x4 <- rnorm(ntrain + ntest, 0, 1)
+x5 <- rnorm(ntrain + ntest, 0, 1)
+x6 <- rnorm(ntrain + ntest, 0, 1)
+x7 <- rnorm(ntrain + ntest, 0, 1)
+x8 <- rnorm(ntrain + ntest, 0, 1)
+x9 <- rnorm(ntrain + ntest, 0, 1)
+x10 <- rnorm(ntrain + ntest, 0, 1)
 e1 <- rnorm(ntrain + ntest, 0, 1)  
 e2 <- rexp(ntrain + ntest, rate=1/20) - 20
 e <- (1-b)*e1 + b*e2 # convex combination of errors
-y <- 3*x1 + a/10*x1^2 + a/50*(x1^3)*(a>1.5) + a*(x1>0)*(a>3) + e*(c* (abs(x1) + 1))
+y <- 3*x1 + a/10*x1^2 + a/50*(x1^3)*(a>1.5) + a*(x1>0)*(a>3) + e*(c* (abs(x1) + 1)) + e
 
-Data <- data.frame(x1, y)
+Data <- data.frame(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, y)
 Train <- Data[1:ntrain, ]
 Test <- Data[(ntrain+1):(ntrain+ntest), ]
 
@@ -65,11 +70,15 @@ QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
 Coverage_QRF <- mean(QRF_Contains)
 Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])
 library(quantregForest)
-Trainx <- data.frame(Train$x1)
-names(Trainx) <- "x1"
-Testx <- data.frame(Test$x1)
-names(Testx) <- "x1"
-QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE)
+#Trainx <- data.frame(Train$x1)
+#names(Trainx) <- "x1"
+#Testx <- data.frame(Test$x1)
+#names(Testx) <- "x1"
+Trainx <- Train[,1:10]
+y <- Train$y
+Testx <- Test[,1:10]
+y <- Test$y
+QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=100, mtry=1)
 QRFpred <- predict(QRF, newdata = Testx, what=mean)
 mean((QRFpred - Test$y)^2)
 QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
@@ -77,8 +86,6 @@ QRFUpper <- predict(QRF, newdata=Testx, what=1-alpha/2)
 QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
 mean(Test$y >= QRF_PI[,2] & Test$y <= QRF_PI[,3])
 mean(QRF_PI[,3]-QRF_PI[,2])
-
-
 
 Res_LM <- c(MSPE_LM, Cov_LM, Width_LM)
 Res_RFOOBSym <- c(MSPE_RF, Coverage_RFOOB_Sym, Width_RFOOB_Sym)
@@ -102,3 +109,25 @@ p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5)  
 p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point() + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")
 p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3")
 
+# check QRF and see if we can get the right coverage
+n = 500
+p = 10
+x <- matrix(rnorm(n*p, 0, 1), n, p)
+x <- matrix(x, ncol = p)
+mx <- x[,1] #+ x[,2] 
+e <- rnorm(n, mean = 0, sd = 1)
+y <- mx+e
+
+x0 <- matrix(rnorm(n*p, 0, 1), n, p)
+x0 <- matrix(x0, ncol = p)
+mx0 <- x0[,1] #+ x0[,2] 
+e0 <- rnorm(n, mean = 0, sd = 1)
+y0 <- mx0+e0
+
+QRF <- quantregForest(x=x, y=y, keep.inbag = TRUE, ntree=100, nodesize=10, mtry=3)
+QRFpred <- predict(QRF, newdata = x0, what=mean)
+mean((QRFpred - Test$y)^2)
+QRFLower <- predict(QRF, newdata=x0, what=alpha/2)
+QRFUpper <- predict(QRF, newdata=x0, what=1-alpha/2)
+QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
+mean((y0 >= QRF_PI[,2]) & (y0 <= QRF_PI[,3]))

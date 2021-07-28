@@ -21,15 +21,18 @@ ui <- fluidPage(
   titlePanel("Random Forest Prediction Intervals"),
   
   fluidRow(
-    column(4, 
+    column(3, 
            sliderInput("a", h3("Linearity"),
                        min = 0, max = 5, value = 0)),
-    column(4,
+    column(3,
            sliderInput("b", h3("Normality/Symmetry"),
                        min = 0, max = 1, value = 0)),
-    column(4,
+    column(3,
           sliderInput("c", h3("Constant Variance"),
-                      min = 0, max = 5, value = 0))
+                      min = 0, max = 5, value = 0)), 
+    column(3,
+           sliderInput("ns", h3("Nodesize"),
+                       min = 1, max = 100, value = 5))
 ),
  
 fluidRow(
@@ -45,11 +48,11 @@ fluidRow(
 # Define server logic required to draw a histogram
 server <- function(input, output){
 
-  Simulation <- function(a,b,c){
+  Simulation <- function(a,b,c,ns){
    
-   ntrain <- 100
-   ntest <- 100
-   alpha = 0.1
+   ntrain <- 500
+   ntest <- 500
+   alpha <- 0.1
    N <- ntrain + ntest
    
    
@@ -59,23 +62,30 @@ server <- function(input, output){
    x1 <- seq(from=ep1, to=ep2, by=(ep2-ep1)/(ntrain+ntest))
    x1 <- x1[sample(1:length(x1))]
    x1 <- x1[1:(ntrain+ntest)]
-   #x2 <- rnorm(ntrain + ntest, 0, 1)
-   #x3 <- rnorm(ntrain + ntest, 0, 1)
-   #x4 <- rnorm(ntrain + ntest, 0, 1)
-   #x5 <- rnorm(ntrain + ntest, 0, 1)
-   e1 <- rnorm(ntrain + ntest, 0, 1)  
-   e2 <- rexp(ntrain + ntest, rate=1/10) - 10
+   x2 <- rnorm(ntrain + ntest, 0, 1)
+   x3 <- rnorm(ntrain + ntest, 0, 1)
+   x4 <- rnorm(ntrain + ntest, 0, 1)
+   x5 <- rnorm(ntrain + ntest, 0, 1)
+   x6 <- rnorm(ntrain + ntest, 0, 1)
+   x7 <- rnorm(ntrain + ntest, 0, 1)
+   x8 <- rnorm(ntrain + ntest, 0, 1)
+   x9 <- rnorm(ntrain + ntest, 0, 1)
+   x10 <- rnorm(ntrain + ntest, 0, 1) 
+   mx <- x1 + a*x1^2 + a*(x1^3)*(a>1.5)
+   mx <- scale(mx) + a*(x1>0)*(a>3) 
+   e1 <- rnorm(ntrain + ntest, 0, 1) +  c*rnorm(ntrain + ntest, 0, abs(x1))
+   e2 <- rexp(ntrain + ntest, rate=1/5) - 5
    e <- (1-b)*e1 + b*e2 # convex combination of errors
-   y <- 3*x1 + a*x1^2 + a*(x1^3)*(a>1.5) + a*(x1>0)*(a>3) + e + e/100*(c*(abs(x1))) 
+   y <- mx + e  #e + e*(c*(abs(x1))) 
 
-   Data <- data.frame(x1, y)
+   Data <- data.frame(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, y)
    Train <- Data[1:ntrain, ]
    Test <- Data[(ntrain+1):(ntrain+ntest), ]
    
    
    # Intervals from Linear Model
    # Assume linearity, normality, constant variance
-   LM <- lm(data=Train, y~.)
+   LM <- lm(data=Train, y~x1)
    LMpred <- predict(LM, newdata=Test) 
    MSPE_LM <- mean((LMpred-Test$y)^2)
    LM_PI <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
@@ -83,7 +93,7 @@ server <- function(input, output){
    Cov_LM <- mean(LM_Contains)
    Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
    
-   RF <- quantreg(data=Train, formula = y~., nodesize=ntrain/50, method="forest", prob=c(alpha/2, 1-alpha/2))
+   RF <- quantreg(data=Train, formula = y~., method="forest", prob=c(alpha/2, 1-alpha/2), ntree=100, nodesize=ns)
    RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(alpha/2, 1-alpha/2))
    RFpred <- RFpredinfo$predicted
    MSPE_RF <- mean((RFpred - Test$y)^2)
@@ -112,11 +122,15 @@ server <- function(input, output){
    # Coverage_QRF <- mean(QRF_Contains)
    # Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
    library(quantregForest)
-   Trainx <- data.frame(Train$x1)
-   names(Trainx) <- "x1"
-   Testx <- data.frame(Test$x1)
-   names(Testx) <- "x1"
-   QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, nodesize=ntrain/10)
+   Trainx <- Train[,1:10]
+   y <- Train$y
+   Testx <- Test[,1:10]
+   y <- Test$y
+   #Trainx <- data.frame(Train$x1)
+   #names(Trainx) <- "x1"
+   #Testx <- data.frame(Test$x1)
+   #names(Testx) <- "x1"
+   QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=ns)
    QRFpred <- predict(QRF, newdata = Testx, what=mean)
    #mean((QRFpred - Test$y)^2)
    QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
@@ -137,23 +151,23 @@ server <- function(input, output){
    rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
 
    #Plot <- qplot(Test$x1, Test$y)
-   p1<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=LM_Contains)) + geom_line(aes(x=x1, y=LM_PI[,1]), color="red") + ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p1<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=LM_Contains)) + geom_line(aes(x=x1, y=LM_PI[,1]), color="red") + ylim(2*min(Test$y),2*max(Test$y) )
    p1<-p1+geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
    
-   p2<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF2_Contains)) + geom_line(aes(x=x1, y=RF_PI2[,1]), color="red")+ ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p2<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF2_Contains)) + geom_line(aes(x=x1, y=RF_PI2[,1]), color="red")+ ylim(2*min(Test$y),2*max(Test$y) )
    p2<-p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Norm., CV") + theme(legend.position = "none")
    
-   p3<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF_Contains)) + geom_line(aes(x=x1, y=RF_PI[,1]), color="red")+ ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p3<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF_Contains)) + geom_line(aes(x=x1, y=RF_PI[,1]), color="red")+ ylim(2*min(Test$y),2*max(Test$y) )
    p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes CV") + theme(legend.position = "none")
    
-   p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=QRF_Contains)) + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")+ ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=QRF_Contains)) + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")+ ylim(2*min(Test$y),2*max(Test$y) )
    p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3") + theme(legend.position = "none")
    
    Plots <- grid.arrange(p1, p2, p3, p4, ncol=2)
    return(list(Plots, Res_Table))
    }
   
-  SimulationRes <- reactive({Simulation(input$a,input$b,input$c)})
+  SimulationRes <- reactive({Simulation(input$a,input$b,input$c, input$ns)})
   output$plot <- renderPlot(SimulationRes()[[1]])
   output$table <- renderTable(SimulationRes()[[2]])
 }
