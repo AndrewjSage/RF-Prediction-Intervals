@@ -131,3 +131,84 @@ QRFLower <- predict(QRF, newdata=x0, what=alpha/2)
 QRFUpper <- predict(QRF, newdata=x0, what=1-alpha/2)
 QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
 mean((y0 >= QRF_PI[,2]) & (y0 <= QRF_PI[,3]))
+
+######################################################################################
+# Boston Housing Data
+x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/x.txt", header=FALSE, sep=" ")
+y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/y.txt", header=FALSE, sep=" ")
+names(y) <- "y"
+Data <- cbind(x,y)
+
+samp <- sample(1:nrow(Data), floor(nrow(Data)/2), replace=FALSE)
+Train <- Data[samp, ]
+Test <- Data[-samp, ]
+
+alpha=0.05
+ns <- 10
+
+LM <- lm(data=Train, y~.)
+LMpred <- predict(LM, newdata=Test) 
+MSPE_LM <- mean((LMpred-Test$y)^2)
+LM_PI <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
+LM_Contains <- (Test$y >= LM_PI[,2]) & (Test$y <= LM_PI[,3])
+Cov_LM <- mean(LM_Contains)
+Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
+
+RF <- quantreg(data=Train, formula = y~., method="forest", prob=c(alpha/2, 1-alpha/2), ntree=100, nodesize=ns)
+RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(alpha/2, 1-alpha/2))
+RFpred <- RFpredinfo$predicted
+MSPE_RF <- mean((RFpred - Test$y)^2)
+# Intervals from Random Forest - Sym. OOB method
+# Assumes constant variance, error distribution symmetric
+OOB_resid <- Train$y - RF$predicted.oob
+MOE <- quantile(abs(OOB_resid), 1-alpha)
+RF_PI2 <- data.frame(RFpred, RFpred-MOE, RFpred+MOE)
+RF2_Contains <- (Test$y >= RF_PI2[,2]) & (Test$y <= RF_PI2[,3])
+Coverage_RFOOB_Sym <- mean(RF2_Contains)
+Width_RFOOB_Sym <- mean(RF_PI2[,3]-RF_PI2[,2])
+# Intervals from Random Forest - Non. Sym. OOB method
+# Assumes constant variance
+Lower <- quantile(OOB_resid, alpha/2)
+Upper <- quantile(OOB_resid, 1-alpha/2)
+RF_PI <- data.frame(RFpred, RFpred+Lower, RFpred+Upper)
+RF_Contains <- (Test$y >= RF_PI[,2]) & (Test$y <= RF_PI[,3])
+Coverage_RFOOB_NonSym <- mean(RF_Contains)
+Width_RFOOB_NonSym <- mean(RF_PI[,3]-RF_PI[,2])
+# Intervals from Quantile Random Forest 
+# Does not assume constant variance
+# QRFLower <- RFpredinfo$quantreg$quantiles[,1]
+# QRFUpper <- RFpredinfo$quantreg$quantiles[,2]
+# QRF_PI <- data.frame(RFpred, QRFLower, QRFUpper)
+# QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
+# Coverage_QRF <- mean(QRF_Contains)
+# Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
+library(quantregForest)
+Trainx <- Train[,1:(ncol(Train)-1)]
+y <- Train$y
+Testx <- Test[,1:(ncol(Train)-1)]
+y <- Test$y
+#Trainx <- data.frame(Train$x1)
+#names(Trainx) <- "x1"
+#Testx <- data.frame(Test$x1)
+#names(Testx) <- "x1"
+QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=ns)
+QRFpred <- predict(QRF, newdata = Testx, what=mean)
+#mean((QRFpred - Test$y)^2)
+QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
+QRFUpper <- predict(QRF, newdata=Testx, what=1-alpha/2)
+QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
+QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
+Coverage_QRF <- mean(QRF_Contains)
+Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
+
+
+Res_LM <- c(MSPE_LM, Cov_LM, Width_LM)
+Res_RFOOBSym <- c(MSPE_RF, Coverage_RFOOB_Sym, Width_RFOOB_Sym)
+Res_RFOOBNonSym <- c(MSPE_RF, Coverage_RFOOB_NonSym, Width_RFOOB_NonSym)
+Res_QRF <- c(MSPE_RF, Coverage_QRF, Width_QRF)
+
+Res_Table <- t(data.frame(Res_LM, Res_RFOOBSym, Res_RFOOBNonSym, Res_QRF))
+colnames(Res_Table) <- c("MSPE", "Coverage", "Width")
+rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
+
+

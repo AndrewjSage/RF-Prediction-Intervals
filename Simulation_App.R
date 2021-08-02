@@ -29,10 +29,7 @@ ui <- fluidPage(
                        min = 0, max = 1, value = 0)),
     column(3,
           sliderInput("c", h3("Constant Variance"),
-                      min = 0, max = 5, value = 0)), 
-    column(3,
-           sliderInput("ns", h3("Nodesize"),
-                       min = 1, max = 100, value = 5))
+                      min = 0, max = 5, value = 0))
 ),
  
 fluidRow(
@@ -53,6 +50,7 @@ server <- function(input, output){
    ntrain <- 500
    ntest <- 500
    alpha <- 0.1
+   ns <- 10
    N <- ntrain + ntest
    
    
