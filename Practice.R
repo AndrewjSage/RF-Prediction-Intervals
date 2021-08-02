@@ -139,10 +139,16 @@ y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master
 names(y) <- "y"
 Data <- cbind(x,y)
 
-samp <- sample(1:nrow(Data), floor(nrow(Data)/2), replace=FALSE)
-Train <- Data[samp, ]
-Test <- Data[-samp, ]
+Means <- data.frame(t(apply(Data, 2, mean, na.rm=TRUE)))
+New <- Means %>% slice(rep(1:1000, each = 1000))
+New$V1 <- seq(min(Data$V1), max(Data$V1), by=(max(Data$V1)-min(Data$V1))/(1000-1))
 
+#samp <- sample(1:nrow(Data), floor(nrow(Data)/2), replace=FALSE)
+#Train <- Data[samp, ]
+#Test <- Data[-samp, ]
+
+Train <- Data
+Test <- New
 alpha=0.05
 ns <- 10
 
