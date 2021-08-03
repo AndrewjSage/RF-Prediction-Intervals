@@ -138,16 +138,16 @@ names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
 #   rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
 
    #Plot <- qplot(Test$V1, Test$y)
-   p1<-ggplot(data=LM_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=LM_PI[,1]), color="red") + ylim(c(2*min(Data$y), 2*max(Data$y)))
+   p1<-ggplot(data=LM_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=LM_PI[,1]), color="red") + ylim(c(1*min(Data$y), 1*max(Data$y)))
    p1<-p1+geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
    
-   p2<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI2[,1]), color="red")  + ylim(c(2*min(Data$y), 2*max(Data$y)))
+   p2<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI2[,1]), color="red")  + ylim(c(1*min(Data$y), 1*max(Data$y)))
    p2 <- p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Norm., CV") + theme(legend.position = "none")
    
-   p3<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI[,1]), color="red")  + ylim(c(2*min(Data$y), 2*max(Data$y)))
+   p3<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI[,1]), color="red")  + ylim(c(1*min(Data$y), 1*max(Data$y)))
    p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes CV") + theme(legend.position = "none")
    
-   p4<-ggplot(data=QRF_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=QRF_PI[,1]), color="red")  + ylim(c(2*min(Data$y), 2*max(Data$y)))
+   p4<-ggplot(data=QRF_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=QRF_PI[,1]), color="red")  + ylim(c(1*min(Data$y), 1*max(Data$y)))
    p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
    
    LM_Res <- data.frame(Train$y)
@@ -156,7 +156,7 @@ names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
    LM_Res$Residual <- LM_Res$y - LM_Res$Predicted
    ResidPlot <- ggplot(data=LM_Res, aes(x=Predicted, y=Residual)) + geom_point()
    ResidHist <- ggplot(data=LM_Res, aes(x=Residual)) + geom_histogram()
-   QQPlot <- ggplot(data=LM_Res, aes(sample = LM_Res$Residual)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
+   QQPlot <- ggplot(data=LM_Res, aes(sample = Residual)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
    
    #DiagnosticPlots <-  grid.arrange(ResidPlot, ResidHist, QQPlot, ncol=3)
    #PIPlots <- grid.arrange(p1, p2, p3, p4, ncol=2)
@@ -171,13 +171,6 @@ names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
    return(list(Plot, Text))
    }
 
-  Plottest <- function(Disp){
-    
-    Plot <- if(Disp == "Linear Model Diagnostics")
-    {qplot(mtcars$mpg)}else{qplot(mtcars$mpg, mtcars$cyl)}
-    Text <- Disp
-    
-    return(list(Plot, Text))}
   
   SimulationRes <- reactive({Simulation(input$var, input$Disp)})
   #SimulationPlt <- reactive({Plottest(input$Disp)})
