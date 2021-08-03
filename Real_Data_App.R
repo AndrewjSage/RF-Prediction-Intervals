@@ -26,23 +26,16 @@ ui <- fluidPage(
   
   fluidRow(
     column(3, 
-           sliderInput("a", h3("Linearity"),
-                       min = 0, max = 5, value = 0)),
+           selectInput(inputId="Disp", label="Display", choices = c("Linear Model Diagnostics", "Prediction Intervals", "Coverage Rates"))),
     column(3,
-           sliderInput("b", h3("Normality/Symmetry"),
-                       min = 0, max = 1, value = 0)),
-    column(3,
-          sliderInput("c", h3("Constant Variance"),
-                      min = 0, max = 5, value = 0)), 
-    column(3,
-           varSelectInput("var", "Variable", Data))
+           varSelectInput("var", "Variable to Display", Data))
 ),
  
 fluidRow(
   # Show a plot of the generated distribution
   mainPanel(
     plotOutput("plot"),
-    tableOutput("table")
+    textOutput("text")
   )  
 )
 
@@ -52,11 +45,12 @@ fluidRow(
 server <- function(input, output){
   #var <- input$var
   
-  Simulation <- function(a,b,c,ns){
+  Simulation <- function(var, Disp){
    
+    varnum <- which(names(Data)==var)
     Means <- data.frame(t(apply(Data, 2, mean, na.rm=TRUE)))
     New <- Means %>% slice(rep(1:1000, each = 1000))
-    New$V1 <- seq(min(Data$V1), max(Data$V1), by=(max(Data$V1)-min(Data$V1))/(1000-1))
+    New[,varnum] <- seq(min(Data[,varnum]), max(Data[,varnum]), by=(max(Data[,varnum])-min(Data[,varnum]))/(1000-1))
     
     #samp <- sample(1:nrow(Data), floor(nrow(Data)/2), replace=FALSE)
     #Train <- Data[samp, ]
@@ -64,6 +58,7 @@ server <- function(input, output){
     
     Train <- Data
     Test <- New
+    
     alpha=0.05
     ns <- 10
     
@@ -126,10 +121,10 @@ server <- function(input, output){
    #Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
 
 LM_PI <- data.frame(LM_PI)   
-LM_PI$x <- Test$V1      
-RF_PI$x <- Test$V1      
-RF_PI2$x <- Test$V1      
-QRF_PI$x <- Test$V1      
+LM_PI$x <- Test[,varnum]      
+RF_PI$x <- Test[,varnum]      
+RF_PI2$x <- Test[,varnum]      
+QRF_PI$x <- Test[,varnum]      
 names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
 
    
@@ -147,21 +142,47 @@ names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
    p1<-p1+geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
    
    p2<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI2[,1]), color="red")  + ylim(c(2*min(Data$y), 2*max(Data$y)))
-   p2 <- p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
+   p2 <- p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Norm., CV") + theme(legend.position = "none")
    
    p3<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI[,1]), color="red")  + ylim(c(2*min(Data$y), 2*max(Data$y)))
-   p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
+   p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes CV") + theme(legend.position = "none")
    
    p4<-ggplot(data=QRF_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=QRF_PI[,1]), color="red")  + ylim(c(2*min(Data$y), 2*max(Data$y)))
    p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
    
-   Plots <- grid.arrange(p1, p2, p3, p4, ncol=2)
-   return(list(Plots, Res_Table))
-   }
+   LM_Res <- data.frame(Train$y)
+   names(LM_Res) <- c("y")
+   LM_Res$Predicted <- LM$fitted.values
+   LM_Res$Residual <- LM_Res$y - LM_Res$Predicted
+   ResidPlot <- ggplot(data=LM_Res, aes(x=Predicted, y=Residual)) + geom_point()
+   ResidHist <- ggplot(data=LM_Res, aes(x=Residual)) + geom_histogram()
+   QQPlot <- ggplot(data=LM_Res, aes(sample = LM_Res$Residual)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
+   
+   #DiagnosticPlots <-  grid.arrange(ResidPlot, ResidHist, QQPlot, ncol=3)
+   #PIPlots <- grid.arrange(p1, p2, p3, p4, ncol=2)
+   #Plot <- if(Disp == "Linear Model Diagnostics"){DiagnosticPlots}else{PIPlots}
+   #Text <- Disp
   
-  SimulationRes <- reactive({Simulation(input$a,input$b,input$c, input$ns)})
+   Plot <- if(Disp == "Linear Model Diagnostics")
+   {grid.arrange(ResidPlot, ResidHist, QQPlot, ncol=3)}else{grid.arrange(p1, p2, p3, p4, ncol=2)}
+   Text <- Disp
+   
+   
+   return(list(Plot, Text))
+   }
+
+  Plottest <- function(Disp){
+    
+    Plot <- if(Disp == "Linear Model Diagnostics")
+    {qplot(mtcars$mpg)}else{qplot(mtcars$mpg, mtcars$cyl)}
+    Text <- Disp
+    
+    return(list(Plot, Text))}
+  
+  SimulationRes <- reactive({Simulation(input$var, input$Disp)})
+  #SimulationPlt <- reactive({Plottest(input$Disp)})
   output$plot <- renderPlot(SimulationRes()[[1]])
-  output$table <- renderTable(SimulationRes()[[2]])
+  output$text <- renderText(SimulationRes()[[2]])
 }
 
 
