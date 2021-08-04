@@ -133,13 +133,13 @@ QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
 mean((y0 >= QRF_PI[,2]) & (y0 <= QRF_PI[,3]))
 
 ######################################################################################
-# Boston Housing Data
+# Real Data
 x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Insur/x.txt", header=FALSE, sep=" ")
 y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Insur/y.txt", header=FALSE, sep=" ")
 names(y) <- "y"
 Data <- cbind(x,y)
 
-
+var="V1"
     varnum <- which(names(Data)==var)
     Means <- data.frame(t(apply(Data, 2, mean, na.rm=TRUE)))
     New <- Means %>% slice(rep(1:1000, each = 1000))
