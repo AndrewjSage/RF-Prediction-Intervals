@@ -41,13 +41,21 @@ LM_Contains <- (Test$y >= LM_PI[,2]) & (Test$y <= LM_PI[,3])
 Cov_LM <- mean(LM_Contains)
 Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
 
-RF <- quantreg(data=Train, formula = y~., nodesize=5, method="forest", prob=c(0.025, 0.975))
-RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(0.025, 0.975))
-RFpred <- RFpredinfo$predicted
+Trainx <- Train[,1:10]
+y <- Train$y
+Testx <- Test[,1:10]
+y <- Test$y
+
+
+#RF <- quantreg(data=Train, formula = y~., nodesize=5, method="forest", prob=c(0.025, 0.975))
+#RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(0.025, 0.975))
+
+RF <- randomForest(data=Train, x=Trainx, y=Train$y, nodesize=5, method="forest", keep.inbag = TRUE)
+RFpred <- predict(object=RF, newdata=Testx)
 MSPE_RF <- mean((RFpred - Test$y)^2)
 # Intervals from Random Forest - Sym. OOB method
 # Assumes constant variance, error distribution symmetric
-OOB_resid <- Train$y - RF$predicted.oob
+OOB_resid <- Train$y - RF$predicted
 MOE <- quantile(abs(OOB_resid), .95)
 RF_PI2 <- data.frame(RFpred, RFpred-MOE, RFpred+MOE)
 RF2_Contains <- (Test$y >= RF_PI2[,2]) & (Test$y <= RF_PI2[,3])
@@ -63,36 +71,43 @@ Coverage_RFOOB_NonSym <- mean(RF_Contains)
 Width_RFOOB_NonSym <- mean(RF_PI[,3]-RF_PI[,2])
 # Intervals from Quantile Random Forest 
 # Does not assume constant variance
-QRFLower <- RFpredinfo$quantreg$quantiles[,1]
-QRFUpper <- RFpredinfo$quantreg$quantiles[,2]
-QRF_PI <- data.frame(RFpred, QRFLower, QRFUpper)
-QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
-Coverage_QRF <- mean(QRF_Contains)
-Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])
-library(quantregForest)
+# QRFLower <- RFpredinfo$quantreg$quantiles[,1]
+# QRFUpper <- RFpredinfo$quantreg$quantiles[,2]
+# QRF_PI <- data.frame(RFpred, QRFLower, QRFUpper)
+# QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
+# Coverage_QRF <- mean(QRF_Contains)
+# Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])
+# library(quantregForest)
 #Trainx <- data.frame(Train$x1)
 #names(Trainx) <- "x1"
 #Testx <- data.frame(Test$x1)
 #names(Testx) <- "x1"
-Trainx <- Train[,1:10]
-y <- Train$y
-Testx <- Test[,1:10]
-y <- Test$y
-QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=100, mtry=1)
-QRFpred <- predict(QRF, newdata = Testx, what=mean)
-mean((QRFpred - Test$y)^2)
-QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
-QRFUpper <- predict(QRF, newdata=Testx, what=1-alpha/2)
-QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
-mean(Test$y >= QRF_PI[,2] & Test$y <= QRF_PI[,3])
-mean(QRF_PI[,3]-QRF_PI[,2])
+# QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=100, mtry=1)
+# QRFpred <- predict(QRF, newdata = Testx, what=mean)
+# mean((QRFpred - Test$y)^2)
+# QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
+# QRFUpper <- predict(QRF, newdata=Testx, what=1-alpha/2)
+# QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
+# mean(Test$y >= QRF_PI[,2] & Test$y <= QRF_PI[,3])
+# mean(QRF_PI[,3]-QRF_PI[,2])
+library(forestError)
+QFE <- quantForestError(forest=RF, X.train=Trainx, X.test=Testx, Y.train = Train$y,  alpha = 0.025)
+QFEPred <- QFE$estimates[,1]
+QFELower <- QFE$estimates[,4]
+QFEUpper <- QFE$estimates[,5]
+QFE_PI <- data.frame(QFEPred, QFELower, QFEUpper)
+QFE_Contains <- (Test$y >= QFE_PI[,2]) & (Test$y <= QFE_PI[,3])
+Coverage_QFE <- mean(QFE_Contains)
+Width_QFE <- mean(QFE_PI[,3]-QFE_PI[,2])
+
 
 Res_LM <- c(MSPE_LM, Cov_LM, Width_LM)
 Res_RFOOBSym <- c(MSPE_RF, Coverage_RFOOB_Sym, Width_RFOOB_Sym)
 Res_RFOOBNonSym <- c(MSPE_RF, Coverage_RFOOB_NonSym, Width_RFOOB_NonSym)
-Res_QRF <- c(MSPE_RF, Coverage_QRF, Width_QRF)
+#Res_QRF <- c(MSPE_RF, Coverage_QRF, Width_QRF)
+Res_QFE <- c(MSPE_RF, Coverage_QFE, Width_QFE)
 
-Res_Table <- t(data.frame(Res_LM, Res_RFOOBSym, Res_RFOOBNonSym, Res_QRF))
+Res_Table <- t(data.frame(Res_LM, Res_RFOOBSym, Res_RFOOBNonSym, Res_QFE))
 colnames(Res_Table) <- c("MSPE", "Coverage", "Width")
 rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
 
@@ -106,8 +121,11 @@ p2<-p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5)
 p3<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point() + geom_line(aes(x=x1, y=RF_PI[,1]), color="red")
 p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes CV")
 
-p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point() + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")
-p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3")
+#p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point() + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")
+#p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3")
+
+p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point() + geom_line(aes(x=x1, y=QFE_PI[,1]), color="red")
+p4<-p4+geom_ribbon(aes(ymin=QFE_PI[,2], ymax=QFE_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3")
 
 # check QRF and see if we can get the right coverage
 n = 500

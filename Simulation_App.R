@@ -13,7 +13,7 @@ library(shiny)
 library(tidyverse)
 library(randomForestSRC)
 library(gridExtra)
-
+library(forestError)
 
 
 # Define UI ----
@@ -45,13 +45,13 @@ fluidRow(
 # Define server logic required to draw a histogram
 server <- function(input, output){
 
-  Simulation <- function(a,b,c,ns){
+  Simulation <- function(a,b,c){
    
-   ntrain <- 500
-   ntest <- 500
+   ntrain <- 10000
+   ntest <- 10000
    alpha <- 0.1
-   ns <- 10
    N <- ntrain + ntest
+   ns <- 2
    
    
    #x1 <- rnorm(ntrain + ntest, 0, 1)
@@ -79,7 +79,11 @@ server <- function(input, output){
    Data <- data.frame(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, y)
    Train <- Data[1:ntrain, ]
    Test <- Data[(ntrain+1):(ntrain+ntest), ]
-   
+
+   Trainx <- Train[,1:10]
+   y <- Train$y
+   Testx <- Test[,1:10]
+   y <- Test$y   
    
    # Intervals from Linear Model
    # Assume linearity, normality, constant variance
@@ -91,13 +95,12 @@ server <- function(input, output){
    Cov_LM <- mean(LM_Contains)
    Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
    
-   RF <- quantreg(data=Train, formula = y~., method="forest", prob=c(alpha/2, 1-alpha/2), ntree=100, nodesize=ns)
-   RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(alpha/2, 1-alpha/2))
-   RFpred <- RFpredinfo$predicted
+   RF <- randomForest(data=Train, x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
+   RFpred <- predict(object=RF, newdata=Testx)
    MSPE_RF <- mean((RFpred - Test$y)^2)
    # Intervals from Random Forest - Sym. OOB method
    # Assumes constant variance, error distribution symmetric
-   OOB_resid <- Train$y - RF$predicted.oob
+   OOB_resid <- Train$y - RF$predicted
    MOE <- quantile(abs(OOB_resid), 1-alpha)
    RF_PI2 <- data.frame(RFpred, RFpred-MOE, RFpred+MOE)
    RF2_Contains <- (Test$y >= RF_PI2[,2]) & (Test$y <= RF_PI2[,3])
@@ -111,40 +114,23 @@ server <- function(input, output){
    RF_Contains <- (Test$y >= RF_PI[,2]) & (Test$y <= RF_PI[,3])
    Coverage_RFOOB_NonSym <- mean(RF_Contains)
    Width_RFOOB_NonSym <- mean(RF_PI[,3]-RF_PI[,2])
-   # Intervals from Quantile Random Forest 
-   # Does not assume constant variance
-   # QRFLower <- RFpredinfo$quantreg$quantiles[,1]
-   # QRFUpper <- RFpredinfo$quantreg$quantiles[,2]
-   # QRF_PI <- data.frame(RFpred, QRFLower, QRFUpper)
-   # QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
-   # Coverage_QRF <- mean(QRF_Contains)
-   # Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
-   library(quantregForest)
-   Trainx <- Train[,1:10]
-   y <- Train$y
-   Testx <- Test[,1:10]
-   y <- Test$y
-   #Trainx <- data.frame(Train$x1)
-   #names(Trainx) <- "x1"
-   #Testx <- data.frame(Test$x1)
-   #names(Testx) <- "x1"
-   QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=ns)
-   QRFpred <- predict(QRF, newdata = Testx, what=mean)
-   #mean((QRFpred - Test$y)^2)
-   QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
-   QRFUpper <- predict(QRF, newdata=Testx, what=1-alpha/2)
-   QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
-   QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
-   Coverage_QRF <- mean(QRF_Contains)
-   Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
+   library(forestError)
+   QFE <- quantForestError(forest=RF, X.train=Trainx, X.test=Testx, Y.train = Train$y,  alpha = alpha)
+   QFEPred <- QFE$estimates[,1]
+   QFELower <- QFE$estimates[,4]
+   QFEUpper <- QFE$estimates[,5]
+   QFE_PI <- data.frame(QFEPred, QFELower, QFEUpper)
+   QFE_Contains <- (Test$y >= QFE_PI[,2]) & (Test$y <= QFE_PI[,3])
+   Coverage_QFE <- mean(QFE_Contains)
+   Width_QFE <- mean(QFE_PI[,3]-QFE_PI[,2])
    
    
    Res_LM <- c(MSPE_LM, Cov_LM, Width_LM)
    Res_RFOOBSym <- c(MSPE_RF, Coverage_RFOOB_Sym, Width_RFOOB_Sym)
    Res_RFOOBNonSym <- c(MSPE_RF, Coverage_RFOOB_NonSym, Width_RFOOB_NonSym)
-   Res_QRF <- c(MSPE_RF, Coverage_QRF, Width_QRF)
+   Res_QFE <- c(MSPE_RF, Coverage_QFE, Width_QFE)
    
-   Res_Table <- t(data.frame(Res_LM, Res_RFOOBSym, Res_RFOOBNonSym, Res_QRF))
+   Res_Table <- t(data.frame(Res_LM, Res_RFOOBSym, Res_RFOOBNonSym, Res_QFE))
    colnames(Res_Table) <- c("MSPE", "Coverage", "Width")
    rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
 
@@ -158,14 +144,14 @@ server <- function(input, output){
    p3<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=RF_Contains)) + geom_line(aes(x=x1, y=RF_PI[,1]), color="red")+ ylim(2*min(Test$y),2*max(Test$y) )
    p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes CV") + theme(legend.position = "none")
    
-   p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=QRF_Contains)) + geom_line(aes(x=x1, y=QRF_PI[,1]), color="red")+ ylim(2*min(Test$y),2*max(Test$y) )
-   p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3") + theme(legend.position = "none")
+   p4<-ggplot(data=Test, aes(x=x1, y=y)) + geom_point(aes(color=QFE_Contains)) + geom_line(aes(x=x1, y=QFE_PI[,1]), color="red")+ ylim(2*min(Test$y),2*max(Test$y) )
+   p4<-p4+geom_ribbon(aes(ymin=QFE_PI[,2], ymax=QFE_PI[,3]), linetype=2, alpha=0.5)  + ggtitle("Assumes None of 3") + theme(legend.position = "none")
    
    Plots <- grid.arrange(p1, p2, p3, p4, ncol=2)
    return(list(Plots, Res_Table))
    }
   
-  SimulationRes <- reactive({Simulation(input$a,input$b,input$c, input$ns)})
+  SimulationRes <- reactive({Simulation(input$a,input$b,input$c)})
   output$plot <- renderPlot(SimulationRes()[[1]])
   output$table <- renderTable(SimulationRes()[[2]])
 }
