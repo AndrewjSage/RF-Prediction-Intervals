@@ -36,15 +36,15 @@ ui <- fluidPage(
                             "Symmetry and Constant Variance" = "Some", 
                             "None" = "None"),
              selected = 1)
-    )
+    ),
     
-  #  column(3, 
-  #         checkboxGroupInput(inputId = "disp", label = "Assumptions", h3("Checkbox group"), 
-  #         choices = list("Linear Structure, Normality, and Constant Variance" = 1, 
-  #                        "Symmetry and Constant Variance" = 2, 
-  #                        "None of these" = 3),
-  #         selected = 1)
-#)
+    column(3, 
+           checkboxGroupInput("data", h3("Data to Display"), 
+                              choices = list("Training Data" = "Train", 
+                                             "Test Data" = "Test"),
+                              selected = "Train")
+    )
+  
 ),
  
 fluidRow(
@@ -85,21 +85,32 @@ server <- function(input, output){
    x8 <- rnorm(ntrain + ntest, 0, 1)
    x9 <- rnorm(ntrain + ntest, 0, 1)
    x10 <- rnorm(ntrain + ntest, 0, 1) 
-   mx <- x1 + a*x1^2 + a*(x1^3)*(a>1.5)
-   mx <- scale(mx) + a*(x1>0)*(a>3) 
+   meanfunc <- function(x1){
+     mx <- x1 + a*x1^2 + a*(x1^3)*(a>1.5)
+     mx <- scale(mx) + a*(x1>0)*(a>3) 
+     return(mx)
+   }
+   mx <- meanfunc(x1)
    e1 <- rnorm(ntrain + ntest, 0, 1) +  c*rnorm(ntrain + ntest, 0, abs(x1))
    e2 <- rexp(ntrain + ntest, rate=1/5) - 5
    e <- (1-b)*e1 + b*e2 # convex combination of errors
-   y <- mx + e  #e + e*(c*(abs(x1))) 
+    y <- mx + e  #e + e*(c*(abs(x1))) 
 
+     
    Data <- data.frame(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, y)
+   Data$mx <- mx
    Train <- Data[1:ntrain, ]
    Test <- Data[(ntrain+1):(ntrain+ntest), ]
+   Train$Datatype <- "Train"
+   Test$Datatype <- "Test"
+   Test$EY <- meanfunc(Test$x1)
+   Train$EY <- meanfunc(Train$x1)
 
    Trainx <- Train[,1:10]
    y <- Train$y
    Testx <- Test[,1:10]
    y <- Test$y   
+   
    
    # Intervals from Linear Model
    # Assume linearity, normality, constant variance
@@ -110,7 +121,9 @@ server <- function(input, output){
    LM_Contains <- (Test$y >= LM_PI[,2]) & (Test$y <= LM_PI[,3])
    Cov_LM <- mean(LM_Contains)
    Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
-   
+   LM_PI <- data.frame(LM_PI)
+   LM_PI$x1 <- Test$x1
+     
    RF <- randomForest(data=Train, x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
    RFpred <- predict(object=RF, newdata=Testx)
    MSPE_RF <- mean((RFpred - Test$y)^2)
@@ -122,6 +135,7 @@ server <- function(input, output){
    RF2_Contains <- (Test$y >= RF_PI2[,2]) & (Test$y <= RF_PI2[,3])
    Coverage_RFOOB_Sym <- mean(RF2_Contains)
    Width_RFOOB_Sym <- mean(RF_PI2[,3]-RF_PI2[,2])
+   RF_PI2$x1 <- Test$x1
    # Intervals from Random Forest - Non. Sym. OOB method
    # Assumes constant variance
    Lower <- quantile(OOB_resid, alpha/2)
@@ -130,6 +144,7 @@ server <- function(input, output){
    RF_Contains <- (Test$y >= RF_PI[,2]) & (Test$y <= RF_PI[,3])
    Coverage_RFOOB_NonSym <- mean(RF_Contains)
    Width_RFOOB_NonSym <- mean(RF_PI[,3]-RF_PI[,2])
+   RF_PI$x1 <- Test$x1
    library(forestError)
    QFE <- quantForestError(forest=RF, X.train=Trainx, X.test=Testx, Y.train = Train$y,  alpha = alpha)
    QFEPred <- QFE$estimates[,1]
@@ -139,7 +154,7 @@ server <- function(input, output){
    QFE_Contains <- (Test$y >= QFE_PI[,2]) & (Test$y <= QFE_PI[,3])
    Coverage_QFE <- mean(QFE_Contains)
    Width_QFE <- mean(QFE_PI[,3]-QFE_PI[,2])
-   
+   QFE_PI$x1 <- Test$x1
    
    Res_LM <- c(MSPE_LM, Cov_LM, Width_LM)
    Res_RFOOBSym <- c(MSPE_RF, Coverage_RFOOB_Sym, Width_RFOOB_Sym)
@@ -167,8 +182,15 @@ server <- function(input, output){
   #          geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.3, color="blue", fill="lightblue") + theme(legend.position = "none") + 
   #          geom_ribbon(aes(ymin=QFE_PI[,2], ymax=QFE_PI[,3]), linetype=2, alpha=0.1, color="green", fill="lightgreen")  + theme(legend.position = "none")
 
-   text <- "Norm" %in% input$Assumptions
-   p <- ggplot(data=Test, aes(x=x1, y=y)) + geom_point() + geom_line(aes(x=x1, y=LM_PI[,1]), color="red") + ylim(1.5*min(Test$y),1.5*max(Test$y) )
+   #text <- "Norm" %in% input$Assumptions
+   text <- input$data
+   Dataset <- rbind(Train, Test)
+   if("Test"%in%input$data){Dataset <- Test}
+   if("Train"%in%input$data){Dataset <- Train}
+   if(length(input$data)>1){Dataset <- rbind(Train, Test)}
+   if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
+   p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + geom_line(aes(x=LM_PI$x1, y=LM_PI[,1]), color="red") + geom_line(aes(x=RF_PI2$x1, y=RF_PI2[,1]), color="blue") +
+     geom_line(aes(x=x1, y=mx), color="green") + ylim(1.5*min(Test$y),1.5*max(Test$y)) + theme_bw()
    p <- if("All" %in% input$Assumptions){p + geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
    p <- if("Some" %in% input$Assumptions){p + geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
    p <- if("None" %in% input$Assumptions){p + geom_ribbon(aes(ymin=QFE_PI[,2], ymax=QFE_PI[,3]), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
