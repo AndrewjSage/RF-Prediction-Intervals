@@ -115,42 +115,63 @@ server <- function(input, output){
    # Intervals from Linear Model
    # Assume linearity, normality, constant variance
    LM <- lm(data=Train, y~x1)
-   LMpred <- predict(LM, newdata=Test) 
-   MSPE_LM <- mean((LMpred-Test$y)^2)
-   LM_PI <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
-   LM_Contains <- (Test$y >= LM_PI[,2]) & (Test$y <= LM_PI[,3])
+   LMPred <- predict(LM, newdata=Test) 
+   MSPE_LM <- mean((LMPred-Test$y)^2)
+   LM_PI_Test <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
+   LM_PI_Test <- data.frame(LM_PI_Test)
+   LM_Contains <- (Test$y >= LM_PI_Test[,2]) & (Test$y <= LM_PI_Test[,3])
    Cov_LM <- mean(LM_Contains)
-   Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
-   LM_PI <- data.frame(LM_PI)
-   LM_PI$x1 <- Test$x1
+   Width_LM <- mean(LM_PI_Test[,3]-LM_PI_Test[,2])
+   LM_PI_Test$x1 <- Test$x1
+   Test$LMPred <- LMPred
+   Test$LMLwr <- LM_PI_Test[,2] 
+   Test$LMUpr <- LM_PI_Test[,3]
+   Train$LMPred <- predict(LM, newdata=Train) 
+   LM_PI_Train <- predict(LM, newdata=Train, interval="prediction", level=1-alpha) 
+   Train$LMLwr <- LM_PI_Train[,2] 
+   Train$LMUpr <- LM_PI_Train[,3]
      
    RF <- randomForest(data=Train, x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
-   RFpred <- predict(object=RF, newdata=Testx)
-   MSPE_RF <- mean((RFpred - Test$y)^2)
+   RFPred <- predict(object=RF, newdata=Testx)
+   MSPE_RF <- mean((RFPred - Test$y)^2)
    # Intervals from Random Forest - Sym. OOB method
    # Assumes constant variance, error distribution symmetric
    OOB_resid <- Train$y - RF$predicted
    MOE <- quantile(abs(OOB_resid), 1-alpha)
-   RF_PI2 <- data.frame(RFpred, RFpred-MOE, RFpred+MOE)
-   RF2_Contains <- (Test$y >= RF_PI2[,2]) & (Test$y <= RF_PI2[,3])
+   RF_PI2_Test <- data.frame(RFPred, RFPred-MOE, RFPred+MOE)
+   RF2_Contains <- (Test$y >= RF_PI2_Test[,2]) & (Test$y <= RF_PI2_Test[,3])
    Coverage_RFOOB_Sym <- mean(RF2_Contains)
-   Width_RFOOB_Sym <- mean(RF_PI2[,3]-RF_PI2[,2])
-   RF_PI2$x1 <- Test$x1
+   Width_RFOOB_Sym <- mean(RF_PI2_Test[,3]-RF_PI2_Test[,2])
+   RF_PI2_Test$x1 <- Test$x1
+   Test$RFPred <- RFPred
+   Test$RF2Lwr <- RF_PI2_Test[,2] 
+   Test$RF2Upr <- RF_PI2_Test[,3]
+   Train$RFPred <- predict(RF, newdata=Train) 
+   Train$RF2Lwr <- Train$RFPred - MOE
+   Train$RF2Upr <- Train$RFPred + MOE
    # Intervals from Random Forest - Non. Sym. OOB method
    # Assumes constant variance
    Lower <- quantile(OOB_resid, alpha/2)
    Upper <- quantile(OOB_resid, 1-alpha/2)
-   RF_PI <- data.frame(RFpred, RFpred+Lower, RFpred+Upper)
+   RF_PI <- data.frame(RFPred, RFPred+Lower, RFPred+Upper)
    RF_Contains <- (Test$y >= RF_PI[,2]) & (Test$y <= RF_PI[,3])
    Coverage_RFOOB_NonSym <- mean(RF_Contains)
    Width_RFOOB_NonSym <- mean(RF_PI[,3]-RF_PI[,2])
    RF_PI$x1 <- Test$x1
+   Test$RFLwr <- RFPred+Lower
+   Test$RFUpr <- RFPred+Upper
+   Train$RFLwr <- Train$RFPred + Lower
+   Train$RFUpr <- Train$RFPred + Upper
    library(forestError)
    QFE <- quantForestError(forest=RF, X.train=Trainx, X.test=Testx, Y.train = Train$y,  alpha = alpha)
-   QFEPred <- QFE$estimates[,1]
-   QFELower <- QFE$estimates[,4]
-   QFEUpper <- QFE$estimates[,5]
-   QFE_PI <- data.frame(QFEPred, QFELower, QFEUpper)
+   QFE2 <- quantForestError(forest=RF, X.train=Trainx, X.test=Trainx, Y.train = Train$y,  alpha = alpha)
+   Test$QFEPred <- QFE$estimates[,1]
+   Test$QFELwr <- QFE$estimates[,4]
+   Test$QFEUpr <- QFE$estimates[,5]
+   Train$QFEPred <- QFE2$estimates[,1]
+   Train$QFELwr <- QFE2$estimates[,4]
+   Train$QFEUpr <- QFE2$estimates[,5]
+   QFE_PI <- data.frame(Test$QFEPred, Test$QFELwr, Test$QFEUpr)
    QFE_Contains <- (Test$y >= QFE_PI[,2]) & (Test$y <= QFE_PI[,3])
    Coverage_QFE <- mean(QFE_Contains)
    Width_QFE <- mean(QFE_PI[,3]-QFE_PI[,2])
@@ -188,12 +209,12 @@ server <- function(input, output){
    if("Test"%in%input$data){Dataset <- Test}
    if("Train"%in%input$data){Dataset <- Train}
    if(length(input$data)>1){Dataset <- rbind(Train, Test)}
-   if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
-   p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + geom_line(aes(x=LM_PI$x1, y=LM_PI[,1]), color="red") + geom_line(aes(x=RF_PI2$x1, y=RF_PI2[,1]), color="blue") +
-     geom_line(aes(x=x1, y=mx), color="green") + ylim(1.5*min(Test$y),1.5*max(Test$y)) + theme_bw()
-   p <- if("All" %in% input$Assumptions){p + geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
-   p <- if("Some" %in% input$Assumptions){p + geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
-   p <- if("None" %in% input$Assumptions){p + geom_ribbon(aes(ymin=QFE_PI[,2], ymax=QFE_PI[,3]), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
+   #if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
+   p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + geom_line(aes(x=x1, y=LMPred), color="red") + geom_line(aes(x=x1, y=RFPred), color="blue") +
+     geom_line(aes(x=x1, y=mx), color="green") + ylim(5*min(Dataset$y),5*max(Dataset$y)) + theme_bw()
+   p <- if("All" %in% input$Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
+   p <- if("Some" %in% input$Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
+   p <- if("None" %in% input$Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
    p <- p + theme(legend.position = "blank")
    
    #Plots <- grid.arrange(p1, p2, p3, p4, ncol=2)
