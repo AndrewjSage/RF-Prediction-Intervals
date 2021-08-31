@@ -63,11 +63,11 @@ server <- function(input, output){
 
   Simulation <- function(a,b,c){
    
-   ntrain <- 100
-   ntest <- 100
+   ntrain <- 500
+   ntest <- 500
    alpha <- 0.1
    N <- ntrain + ntest
-   ns <- 5
+   ns <- 10
    
    
    #x1 <- rnorm(ntrain + ntest, 0, 1)
@@ -130,7 +130,13 @@ server <- function(input, output){
    LM_PI_Train <- predict(LM, newdata=Train, interval="prediction", level=1-alpha) 
    Train$LMLwr <- LM_PI_Train[,2] 
    Train$LMUpr <- LM_PI_Train[,3]
-     
+  
+   Trainx <- data.frame(Trainx$x1)
+   names(Trainx) <- "x1"
+   Testx <- data.frame(Testx$x1)
+   names(Testx) <- "x1"
+   
+   
    RF <- randomForest(data=Train, x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
    RFPred <- predict(object=RF, newdata=Testx)
    MSPE_RF <- mean((RFPred - Test$y)^2)
@@ -211,7 +217,7 @@ server <- function(input, output){
    if(length(input$data)>1){Dataset <- rbind(Train, Test)}
    #if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
    p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + geom_line(aes(x=x1, y=LMPred), color="red") + geom_line(aes(x=x1, y=RFPred), color="blue") +
-     geom_line(aes(x=x1, y=mx), color="green") + ylim(5*min(Dataset$y),5*max(Dataset$y)) + theme_bw()
+     geom_line(aes(x=x1, y=mx), color="green") + ylim(1.5*min(Dataset$y),1.5*max(Dataset$y)) + theme_bw()
    p <- if("All" %in% input$Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
    p <- if("Some" %in% input$Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
    p <- if("None" %in% input$Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
