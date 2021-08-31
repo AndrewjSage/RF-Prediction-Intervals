@@ -21,16 +21,16 @@ ui <- fluidPage(
   titlePanel("Random Forest Prediction Intervals"),
   
   fluidRow(
-    column(3, 
+    column(2, 
            sliderInput("a", h3("Linearity"),
                        min = 0, max = 5, value = 0)),
-    column(3,
+    column(2,
            sliderInput("b", h3("Normality/Symmetry"),
                        min = 0, max = 1, value = 0)),
-    column(3,
+    column(2,
           sliderInput("c", h3("Constant Variance"),
                       min = 0, max = 5, value = 0)),
-      column(3, 
+    column(2, 
              checkboxGroupInput("Assumptions", h3("Prediction Interval Assumptions"), 
              choices = list("Linearity, Normality, and Constant Variance, " = "All", 
                             "Symmetry and Constant Variance" = "Some", 
@@ -38,21 +38,21 @@ ui <- fluidPage(
              selected = 1)
     ),
     
-    column(3, 
-           checkboxGroupInput("data", h3("Data to Display"), 
-                              choices = list("Training Data" = "Train", 
-                                             "Test Data" = "Test"),
-                              selected = "Train")
-    )
-  
-),
+
+    
+    column(2,
+           selectInput("data", h3("Data to Display"), 
+                       choices = list("Training Data" = "Train", 
+                                      "Test Data" = "Test"),
+                       selected = "Train"))
+  ),
  
 fluidRow(
   # Show a plot of the generated distribution
   mainPanel(
     plotOutput("plot"),
-    tableOutput("table"),
-    textOutput("text")
+    tableOutput("table")
+ #   textOutput("text")
   )  
 )
 
@@ -63,11 +63,11 @@ server <- function(input, output){
 
   Simulation <- function(a,b,c){
    
-   ntrain <- 500
-   ntest <- 500
+   ntrain <- 1000
+   ntest <- 1000
    alpha <- 0.1
    N <- ntrain + ntest
-   ns <- 10
+   ns <- 20
    
    
    #x1 <- rnorm(ntrain + ntest, 0, 1)
@@ -210,28 +210,32 @@ server <- function(input, output){
   #          geom_ribbon(aes(ymin=QFE_PI[,2], ymax=QFE_PI[,3]), linetype=2, alpha=0.1, color="green", fill="lightgreen")  + theme(legend.position = "none")
 
    #text <- "Norm" %in% input$Assumptions
-   text <- input$data
+  # text <- input$data
    Dataset <- rbind(Train, Test)
-   if("Test"%in%input$data){Dataset <- Test}
-   if("Train"%in%input$data){Dataset <- Train}
-   if(length(input$data)>1){Dataset <- rbind(Train, Test)}
+   return(list(Dataset, Res_Table))
+   #return(Dataset)
+  }
+   
+CreatePlot <- function(Dataset, data, Assumptions){  
+   if("Test"%in%data){Dataset <- Dataset %>% filter(Datatype=="Test")}
+   if("Train"%in%data){Dataset <- Dataset %>% filter(Datatype=="Train")}
+#   if(length(data)>1){Dataset <- rbind(Train, Test)}
    #if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
    p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + geom_line(aes(x=x1, y=LMPred), color="red") + geom_line(aes(x=x1, y=RFPred), color="blue") +
-     geom_line(aes(x=x1, y=mx), color="green") + ylim(1.5*min(Dataset$y),1.5*max(Dataset$y)) + theme_bw()
-   p <- if("All" %in% input$Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
-   p <- if("Some" %in% input$Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
-   p <- if("None" %in% input$Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
+     geom_line(aes(x=x1, y=mx), color="green") + ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+   p <- if("All" %in% Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
+   p <- if("Some" %in% Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
+   p <- if("None" %in% Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
    p <- p + theme(legend.position = "blank")
-   
-   #Plots <- grid.arrange(p1, p2, p3, p4, ncol=2)
-  return(list(p, Res_Table, text))
-   }
+  return(p)
+   }   
   
-  SimulationRes <- reactive({Simulation(input$a,input$b,input$c)})
-  output$plot <- renderPlot(SimulationRes()[[1]])
+  SimulationRes <- reactive({Simulation(a=input$a,b=input$b,c=input$c)})
+  Plot <- reactive({CreatePlot(Dataset=SimulationRes()[[1]], data=input$data, Assumptions=input$Assumptions)})
+  output$plot <- renderPlot(Plot())
   output$table <- renderTable(SimulationRes()[[2]])
-  output$text <- renderText(SimulationRes()[[3]])
-}
+  
+  }
 
 
 
