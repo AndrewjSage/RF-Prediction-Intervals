@@ -80,7 +80,8 @@ fluidRow(
   # Show a plot of the generated distribution
   mainPanel(
     plotOutput("plot"),
-    tableOutput("table")
+    tableOutput("MSPEtable"),
+    tableOutput("PItable")
    # textOutput("text")
   )  
 )
@@ -103,7 +104,8 @@ server <- function(input, output){
    ntest <- 100
    alpha <- 0.1
    N <- ntrain + ntest
-   ns <- min(ntrain/10, 10)
+#   ns <- min(ntrain/10, 10)
+   ns <- 20
    
    
    #x1 <- rnorm(ntrain + ntest, 0, 1)
@@ -274,16 +276,34 @@ CalculateMSPE <- function(Dataset, range){
   MSPE_RF <- mean((Dataset$RFPred-Dataset$y)^2)
   Method <- c("Linear Model", "Random Forest")
   MSPE <- c(MSPE_LM, MSPE_RF)
-  MSPE_Table <- t(data.frame(Method, MSPE))
+  MSPE_Table <- (data.frame(Method, MSPE))
   return(c(MSPE_Table))
 } 
+
+
+EvaluatePI <- function(Dataset, range){
+  Dataset <- Dataset %>% filter(Datatype=="Test")
+  Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
+  LM_Coverage <- mean((Dataset$y >= Dataset$LMLwr) & (Dataset$y <= Dataset$LMUpr))
+  RF_Coverage <- mean((Dataset$y >= Dataset$RF2Lwr) & (Dataset$y <= Dataset$RF2Upr))
+  QFE_Coverage <- mean((Dataset$y >= Dataset$QFELwr) & (Dataset$y <= Dataset$QFEUpr))
+  LM_Width <- mean(Dataset$LMUpr-Dataset$LMLwr)
+  RF_Width <- mean(Dataset$RFUpr-Dataset$RFLwr)
+  QFE_Width <- mean(Dataset$QFEUpr-Dataset$QFELwr)
+  Coverage <- c(LM_Coverage, RF_Coverage, QFE_Coverage)
+  Mean_Width <- c(LM_Width, RF_Width, QFE_Width)
+  Assumptions <- c("Linearity, Normality, and Constant Variance", "Normality and Symmetry", "None of These")
+  PI_Table <- (data.frame(Assumptions, Coverage, Mean_Width))
+  return(c(PI_Table))
+}
 
   SimulationRes <- reactive({Simulation(L=input$L,N=input$N,C=input$C)})
   Plot <- reactive({CreatePlot(Dataset=SimulationRes(), data=input$data, Assumptions=input$Assumptions, range=input$range)})
   output$plot <- renderPlot(Plot())
   #MSPE <- reactive(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
-  output$table <- renderTable(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
-  #output$text <- renderText(paste("Linear Model MSPE=",MSPE()[[1]], "Random Forest MSPE=", MSPE()[[2]]))
+  output$MSPEtable <- renderTable(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
+  output$PItable <- renderTable(EvaluatePI(Dataset=SimulationRes(), range=input$range))
+    #output$text <- renderText(paste("Linear Model MSPE=",MSPE()[[1]], "Random Forest MSPE=", MSPE()[[2]]))
   #output$table <- renderTable(SimulationRes()[[2]])
   
   }
