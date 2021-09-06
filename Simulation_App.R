@@ -22,7 +22,7 @@ ui <- fluidPage(
   titlePanel("Random Forest Prediction Intervals"),
   
   fluidRow(
-    column(6, 
+    column(4, 
            #sliderInput("a", h5("Linearity"),
            #            min = 0, max = 5, value = 0, step=0.1, ticks=FALSE),
            sliderTextInput(
@@ -34,6 +34,7 @@ ui <- fluidPage(
                          "Slight", "Moderate",
                          "Large", "Very Large")
            ),
+   # column(4,
            sliderTextInput(
              inputId = "N",
              label = "Violation of Normality Assumption",
@@ -43,6 +44,7 @@ ui <- fluidPage(
                          "Slight", "Moderate",
                          "Large", "Very Large")
            ),
+    #column(4,
            sliderTextInput(
              inputId = "C",
              label = "Violation of Constant Variance Assumption",
@@ -58,40 +60,49 @@ ui <- fluidPage(
 
           #sliderInput("c", h5("Constant Variance"),
           #            min = 0, max = 5, value = 0, ticks=FALSE)),
-    column(6, 
-           selectInput("data", h3("Display"), 
-                       choices = list("Training Data and Fitted Response" = "Train", 
-                                      "Test Data and Prediction Intervals " = "Test"),
-                       selected = "Train"),
-             checkboxGroupInput("Assumptions", h3("Prediction Interval Assumptions"), 
-             choices = list("Linearity, Normality, and Constant Variance, " = "All", 
-                            "Symmetry and Constant Variance" = "Some", 
-                            "None" = "None"),
-             selected = 1),
-           sliderInput("range", "Range:",
-                       min = -1, max = 1, step=0.05,
-                       value = c(-1,1))
-    )
-    
-
-  ),
+   column(4, 
+          selectInput("data", h5("Display"), 
+                      choices = list("Training Data" = "Train", 
+                                     "Test Data" = "Test"),
+                      selected = "Train"), 
+          sliderInput("level", "Desired Coverage Level:",
+                      min = 0.7, max = 0.95, step=0.05,
+                      value = 0.9),
+          sliderInput("range", "Range:",
+                      min = -1, max = 1, step=0.05,
+                      value = c(-1,1))
+          ), 
+   column(4,
+           checkboxGroupInput("Estimate", h5("Display"), 
+                              choices = list("True Expected Response Function" = "True",
+                                             "Linear Model Estimate" = "LMest", 
+                                             "Random Forest Estimate" = "RFest" 
+                                             ),
+                              selected = "1"),
+          checkboxGroupInput("Assumptions", h5("Prediction Intervals"), 
+                             choices = list("Linearity, Normality, and Constant Variance, " = "All", 
+                                            "Symmetry and Constant Variance" = "Some", 
+                                            "None" = "None"),
+                             selected = 1)
+           )),
   
 fluidRow(
   # Show a plot of the generated distribution
-  mainPanel(
-    plotOutput("plot"),
+#  mainPanel(
+    column(8,
+    plotOutput("plot")
+    ),
+    column(4,
     tableOutput("MSPEtable"),
     tableOutput("PItable")
+    )
    # textOutput("text")
-  )  
 )
-
 )
-
 # Define server logic required to draw a histogram
 server <- function(input, output){
 
-  Simulation <- function(L,N,C){
+  Simulation <- function(L,N,C, level){
    
   a <- ifelse(L=="None",0, ifelse(L=="Slight", 2, 
                                ifelse(L=="Moderate", 4, ifelse(L=="Large", 6, 8))))
@@ -100,12 +111,12 @@ server <- function(input, output){
   c <-  ifelse(C=="None",0, ifelse(C=="Slight", 2, 
                                  ifelse(C=="Moderate", 4, ifelse(C=="Large", 6, 8))))
     
-   ntrain <- 100
-   ntest <- 100
-   alpha <- 0.1
+   ntrain <- 500
+   ntest <- 500
+   alpha <- 1-level
    N <- ntrain + ntest
 #   ns <- min(ntrain/10, 10)
-   ns <- 20
+   ns <- 15
    
    
    #x1 <- rnorm(ntrain + ntest, 0, 1)
@@ -124,8 +135,9 @@ server <- function(input, output){
    x9 <- rnorm(ntrain + ntest, 0, 1)
    x10 <- rnorm(ntrain + ntest, 0, 1) 
    meanfunc <- function(x1){
-     mx <- x1 + a*x1^2 + a*(x1^3)*(a>1.5)
-     mx <- scale(mx) + a*(x1>0)*(a>3) 
+    mx <- x1 + a*x1^2 + a*x1^3*(a>3) + a*(x1>0)*(a>5) - a*(abs(x1)<0.5)*(a>7)
+  #   mx <- x1 + a*x1^2 + a*(x1^3)*(a>1.5)
+  #   mx <- scale(mx) + a*(x1>0)*(a>3) 
      return(mx)
    }
    mx <- meanfunc(x1)
@@ -254,14 +266,16 @@ server <- function(input, output){
    return(Dataset)
   }
    
-CreatePlot <- function(Dataset, data, Assumptions, range){  
+CreatePlot <- function(Dataset, data, Estimate, Assumptions, range){  
    if("Test"%in%data){Dataset <- Dataset %>% filter(Datatype=="Test")}
    if("Train"%in%data){Dataset <- Dataset %>% filter(Datatype=="Train")}
 #   if(length(data)>1){Dataset <- rbind(Train, Test)}
    #if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
   Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
-  p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + geom_line(aes(x=x1, y=LMPred), color="red") + geom_line(aes(x=x1, y=RFPred), color="blue") +
-     geom_line(aes(x=x1, y=mx), color="green") + ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+  p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+  p <- if("True"%in% Estimate){p+geom_line(aes(x=x1, y=mx), color="green", size=3)}else{p}
+  p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred), color="red")}else{p}
+  p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred), color="blue")}else{p}
    p <- if("All" %in% Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
    p <- if("Some" %in% Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
    p <- if("None" %in% Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
@@ -297,12 +311,12 @@ EvaluatePI <- function(Dataset, range){
   return(c(PI_Table))
 }
 
-  SimulationRes <- reactive({Simulation(L=input$L,N=input$N,C=input$C)})
-  Plot <- reactive({CreatePlot(Dataset=SimulationRes(), data=input$data, Assumptions=input$Assumptions, range=input$range)})
+  SimulationRes <- reactive({Simulation(L=input$L,N=input$N,C=input$C, level=input$level)})
+  Plot <- reactive({CreatePlot(Dataset=SimulationRes(), data=input$data, Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$plot <- renderPlot(Plot())
   #MSPE <- reactive(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
-  output$MSPEtable <- renderTable(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
-  output$PItable <- renderTable(EvaluatePI(Dataset=SimulationRes(), range=input$range))
+  output$MSPEtable <- renderTable(CalculateMSPE(Dataset=SimulationRes(), range=input$range), width="20%")
+  output$PItable <- renderTable(EvaluatePI(Dataset=SimulationRes(), range=input$range), width="20%")
     #output$text <- renderText(paste("Linear Model MSPE=",MSPE()[[1]], "Random Forest MSPE=", MSPE()[[2]]))
   #output$table <- renderTable(SimulationRes()[[2]])
   
