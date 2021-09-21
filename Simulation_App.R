@@ -74,15 +74,15 @@ ui <- fluidPage(
           ), 
    column(3,
            checkboxGroupInput("Estimate", h5("Display"), 
-                              choices = list("True Expected Response Function" = "True",
+                              choices = list("True Expected Response" = "True",
                                              "Linear Model Estimate" = "LMest", 
                                              "Random Forest Estimate" = "RFest" 
                                              ),
                               selected = "1"),
-          checkboxGroupInput("Assumptions", h5("Prediction Intervals"), 
-                             choices = list("Linearity, Normality, and Constant Variance, " = "All", 
+          checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
+                             choices = list("Linearity, Normality, and Constant Variance" = "All", 
                                             "Symmetry and Constant Variance" = "Some", 
-                                            "None" = "None"),
+                                            "None of These" = "None"),
                              selected = 1)
            ),
    column(2,
@@ -109,50 +109,40 @@ server <- function(input, output){
 
   Simulation <- function(L,N,C, action){
    
-  a <- ifelse(L=="None",0, ifelse(L=="Slight", 2, 
-                               ifelse(L=="Moderate", 4, ifelse(L=="Large", 6, 8))))
-  b <-  ifelse(N=="None",0, ifelse(N=="Slight", 0.25, 
+s1 <-1  
+s2 <-1  
+s3 <-1  
+
+  a <- s1*ifelse(L=="None",0, ifelse(L=="Slight", 1, 
+                               ifelse(L=="Moderate", 2, ifelse(L=="Large", 3, 4))))
+  b <-  s2*ifelse(N=="None",0, ifelse(N=="Slight", 0.25, 
                                  ifelse(N=="Moderate", 0.5, ifelse(N=="Large",0.75,1))))
-  c <-  ifelse(C=="None",0, ifelse(C=="Slight", 2, 
-                                 ifelse(C=="Moderate", 4, ifelse(C=="Large", 6, 8))))
+  c <-  s3*ifelse(C=="None",0, ifelse(C=="Slight", 1, 
+                                 ifelse(C=="Moderate", 2, ifelse(C=="Large", 3, 4))))
     
    ntrain <- 500
    ntest <- 500
- #  alpha <- 1-level
    N <- ntrain + ntest
-#   ns <- min(ntrain/10, 10)
    ns <- 20
    
    
-   #x1 <- rnorm(ntrain + ntest, 0, 1)
    ep1 <- -1
    ep2 <- 1
    x1 <- seq(from=ep1, to=ep2, by=(ep2-ep1)/(ntrain+ntest))
    x1 <- x1[sample(1:length(x1))]
    x1 <- x1[1:(ntrain+ntest)]
-   x2 <- rnorm(ntrain + ntest, 0, 1)
-   x3 <- rnorm(ntrain + ntest, 0, 1)
-   x4 <- rnorm(ntrain + ntest, 0, 1)
-   x5 <- rnorm(ntrain + ntest, 0, 1)
-   x6 <- rnorm(ntrain + ntest, 0, 1)
-   x7 <- rnorm(ntrain + ntest, 0, 1)
-   x8 <- rnorm(ntrain + ntest, 0, 1)
-   x9 <- rnorm(ntrain + ntest, 0, 1)
-   x10 <- rnorm(ntrain + ntest, 0, 1) 
    meanfunc <- function(x1){
-    mx <- x1 + a*x1^2 + a*(x1-0.3)^5*(a>3) + a*(x1>0)*(a>5) - a*(abs(x1)<0.5)*(a>7)
-  #   mx <- x1 + a*x1^2 + a*(x1^3)*(a>1.5)
-  #   mx <- scale(mx) + a*(x1>0)*(a>3) 
+    mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5)
      return(mx)
    }
    mx <- meanfunc(x1)
    e1 <- rnorm(ntrain + ntest, 0, 1) +  c*rnorm(ntrain + ntest, 0, abs(x1))
-   e2 <- rexp(ntrain + ntest, rate=1/5) - 5
+   e2 <- rexp(ntrain + ntest, rate=1) - 1
    e <- (1-b)*e1 + b*e2 # convex combination of errors
     y <- mx + e  #e + e*(c*(abs(x1))) 
 
      
-   Data <- data.frame(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, y)
+   Data <- data.frame(x1, y)
    Data$mx <- mx
    Train <- Data[1:ntrain, ]
    Test <- Data[(ntrain+1):(ntrain+ntest), ]
@@ -161,10 +151,6 @@ server <- function(input, output){
    Test$EY <- meanfunc(Test$x1)
    Train$EY <- meanfunc(Train$x1)
 
-   Trainx <- Train[,1:10]
-   y <- Train$y
-   Testx <- Test[,1:10]
-   y <- Test$y   
    Dataset <- rbind(Train, Test)
    Trainx <- data.frame(Train$x1)
    names(Trainx) <- "x1"
@@ -257,20 +243,25 @@ server <- function(input, output){
 CreatePlot <- function(Dataset, data, Estimate, Assumptions, range){  
    if("Test"%in%data){Dataset <- Dataset %>% filter(Datatype=="Test")}
    if("Train"%in%data){Dataset <- Dataset %>% filter(Datatype=="Train")}
-#   if(length(data)>1){Dataset <- rbind(Train, Test)}
-   #if(length(input$data)>1){LM_PI <- rbind(LM_PI, LM_PI); RF_PI2 <- rbind(RF_PI2, RF_PI2); QFE_PI <- rbind(QFE_PI, QFE_PI)}
+ # colors <- c("True" = "black", "LMest" = "green", "RFest" = "blue")
   Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
-  p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(aes(color=Datatype)) + theme_bw() #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
-  p <- if("True"%in% Estimate){p+geom_line(aes(x=x1, y=mx), color="black", size=2)}else{p}
-  p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred), color="green", size=2)}else{p}
-  p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred), color="blue", size=2)}else{p}
+  p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point() + xlab("Explanatory Variable") + ylab("Response Variable") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=2)}else{p}
+     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=2)}else{p}
+     p <- if("True"%in% Estimate){p+geom_line(aes(x=x1, y=mx,color="red"), size=2)}else{p} 
    p <- if("All" %in% Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
    p <- if("Some" %in% Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
    p <- if("None" %in% Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
-   p <- p + theme(legend.position = "blank")
+   p <- p + scale_color_identity(name = "Estimate",  breaks = c("red", "green", "blue"), labels = c("True Expected Response", "Linear Model Estimate", "Random Forest Estimate"),  guide = "legend") #+ 
+#     scale_color_identity(name = "Interval Method",  breaks = c("grey", "blue", "purple"), labels = c("Linear Model", "Random Forest with Assumptions", "Random Forest without Assumtions"),  guide = "legend")
+
   return(p)
    }   
   
+
+
+
+
 CalculateMSPE <- function(Dataset, range){
   Dataset <- Dataset %>% filter(Datatype=="Test")
   Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
@@ -294,7 +285,7 @@ EvaluatePI <- function(Dataset, range){
   QFE_Width <- mean(Dataset$QFEUpr-Dataset$QFELwr)
   Coverage <- c(LM_Coverage, RF_Coverage, QFE_Coverage)
   Mean_Width <- c(LM_Width, RF_Width, QFE_Width)
-  Assumptions <- c("Linearity, Normality, and Constant Variance", "Normality and Symmetry", "None of These")
+  Assumptions <- c("Linearity, Normality, and Constant Variance", "Symmetry and Constant Variance", "None of These")
   PI_Table <- (data.frame(Assumptions, Coverage, Mean_Width))
   return(c(PI_Table))
 }
