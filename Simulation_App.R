@@ -75,14 +75,14 @@ ui <- fluidPage(
    column(3,
            checkboxGroupInput("Estimate", h5("Display"), 
                               choices = list("True Expected Response" = "True",
-                                             "Linear Model Estimate" = "LMest", 
-                                             "Random Forest Estimate" = "RFest" 
+                                             "Linear Model (LM) Estimate" = "LMest", 
+                                             "Random Forest (RF) Estimate" = "RFest" 
                                              ),
                               selected = "1"),
           checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
-                             choices = list("Linearity, Normality, and Constant Variance" = "All", 
-                                            "Symmetry and Constant Variance" = "Some", 
-                                            "None of These" = "None"),
+                             choices = list("LM (Least Flexible)" = "All", 
+                                            "RF (Medium Flexibility)" = "Some", 
+                                            "RF (Most Flexible)" = "None"),
                              selected = 1)
            ),
    column(2,
@@ -120,8 +120,8 @@ s3 <-1
   c <-  s3*ifelse(C=="None",0, ifelse(C=="Slight", 1, 
                                  ifelse(C=="Moderate", 2, ifelse(C=="Large", 3, 4))))
     
-   ntrain <- 500
-   ntest <- 500
+   ntrain <- 1000
+   ntest <- 1000
    N <- ntrain + ntest
    ns <- 20
    
@@ -245,10 +245,10 @@ CreatePlot <- function(Dataset, data, Estimate, Assumptions, range){
    if("Train"%in%data){Dataset <- Dataset %>% filter(Datatype=="Train")}
  # colors <- c("True" = "black", "LMest" = "green", "RFest" = "blue")
   Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
-  p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point() + xlab("Explanatory Variable") + ylab("Response Variable") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
-     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=2)}else{p}
-     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=2)}else{p}
-     p <- if("True"%in% Estimate){p+geom_line(aes(x=x1, y=mx,color="red"), size=2)}else{p} 
+  p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(color="orange") + xlab("Explanatory Variable (x)") + ylab("Response Variable (y)") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+     p <- if("True"%in% Estimate){p+geom_line(aes(x=x1, y=mx,color="red"), size=4)}else{p}
+     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=1)}else{p}
+     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=1)}else{p}
    p <- if("All" %in% Assumptions){p + geom_ribbon(aes(ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
    p <- if("Some" %in% Assumptions){p + geom_ribbon(aes(ymin=RF2Lwr, ymax=RF2Upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
    p <- if("None" %in% Assumptions){p + geom_ribbon(aes(ymin=QFELwr, ymax=QFEUpr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
