@@ -80,9 +80,9 @@ ui <- fluidPage(
                                              ),
                               selected = "1"),
           checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
-                             choices = list("LM (Least Flexible)" = "All", 
-                                            "RF (Medium Flexibility)" = "Some", 
-                                            "RF (Most Flexible)" = "None"),
+                             choices = list("LM - assumes lin., norm., C.V." = "All", 
+                                            "RF - assumes sym., C.V." = "Some", 
+                                            "RF - assumes none of these" = "None"),
                              selected = 1)
            ),
    column(2,
@@ -285,8 +285,8 @@ EvaluatePI <- function(Dataset, range){
   QFE_Width <- mean(Dataset$QFEUpr-Dataset$QFELwr)
   Coverage <- c(LM_Coverage, RF_Coverage, QFE_Coverage)
   Mean_Width <- c(LM_Width, RF_Width, QFE_Width)
-  Assumptions <- c("Linearity, Normality, and Constant Variance", "Symmetry and Constant Variance", "None of These")
-  PI_Table <- (data.frame(Assumptions, Coverage, Mean_Width))
+  Interval_Method <- c("LM - assumes lin., norm., C.V., ", "RF - assumes sym., and C.V. ", "RF - assumes none of these")
+  PI_Table <- (data.frame(Interval_Method, Coverage, Mean_Width))
   return(c(PI_Table))
 }
 
