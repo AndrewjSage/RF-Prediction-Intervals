@@ -115,8 +115,8 @@ s3 <-1
 
   a <- s1*ifelse(L=="None",0, ifelse(L=="Slight", 1, 
                                ifelse(L=="Moderate", 2, ifelse(L=="Large", 3, 4))))
-  b <-  s2*ifelse(N=="None",0, ifelse(N=="Slight", 0.25, 
-                                 ifelse(N=="Moderate", 0.5, ifelse(N=="Large",0.75,1))))
+  b <-  s2*ifelse(N=="None",0, ifelse(N=="Slight", 0.125, 
+                                 ifelse(N=="Moderate", 0.25, ifelse(N=="Large",0.375,1))))
   c <-  s3*ifelse(C=="None",0, ifelse(C=="Slight", 1, 
                                  ifelse(C=="Moderate", 2, ifelse(C=="Large", 3, 4))))
     
@@ -137,7 +137,7 @@ s3 <-1
    }
    mx <- meanfunc(x1)
    e1 <- rnorm(ntrain + ntest, 0, 1) +  c*rnorm(ntrain + ntest, 0, abs(x1))
-   e2 <- rexp(ntrain + ntest, rate=1) - 1
+   e2 <- (c*abs(x1)/4+1)*(rexp(ntrain + ntest, rate=1) - 1)
    e <- (1-b)*e1 + b*e2 # convex combination of errors
     y <- mx + e  #e + e*(c*(abs(x1))) 
 
@@ -156,7 +156,7 @@ s3 <-1
    names(Trainx) <- "x1"
    Testx <- data.frame(Test$x1)
    names(Testx) <- "x1"
-   RF <- randomForest(data=Train, x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
+   RF <- randomForest(x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
    
    return(list(Dataset, RF, action))
   }
