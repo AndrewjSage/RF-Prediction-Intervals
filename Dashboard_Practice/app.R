@@ -5,6 +5,12 @@ x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master
 y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/y.txt", header=FALSE, sep=" ")
 names(y) <- "y"
 Data <- cbind(x,y)
+Train <- Data
+Trainx <-x
+ns <- 10
+RF <- randomForest(x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
+LM <- lm(data=Train, y~.)
+
 
 ui <- dashboardPage(
   dashboardHeader(title = "Basic dashboard"),
@@ -23,36 +29,49 @@ ui <- dashboardPage(
                 box(plotOutput("plot", height = 250)),
                 
                 box(
-                  title = "Controls",
-                  checkboxGroupInput("Estimate", h5("Display"), 
-                                     choices = list("Linear Model (LM) Estimate" = "LMest", 
-                                                    "Random Forest (RF) Estimate" = "RFest" 
-                                     ),
-                                     selected = "1"),
-                  checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
-                                     choices = list("LM - assumes lin., norm., C.V." = "All", 
-                                                    "RF - assumes sym., C.V." = "Some", 
-                                                    "RF - assumes none of these" = "None"),
-                                     selected = 1), 
-                  sliderInput("range", "Range:",
-                              min = min(Test$x1), max = max(Test$x1), step=0.05,
-                              value = c(0,5)), 
-                  varSelectInput("var", "Variable to Display", Trainx), 
-                  sliderInput("level", "Desired Coverage Level:",
-                              min = 0.7, max = 0.95, step=0.05,
-                              value = 0.9)
-                  
+                  title = "Controls"
                 )
-                
               )
       ),
       
       # Second tab content
       tabItem(tabName = "ResPlots",
-              h2("Residual Plots tab content")
-      ),
-      tabItem(tabName = "PredIntervals",
-              h2("Intervals tab content")
+              fluidRow(
+                box(
+                  title = "Controls",
+                  selectInput("method", h5("method"), 
+                              choices = list("Linear Model" = "LM", 
+                                             "Random Forest" = "RF")))),
+              fluidRow(
+                box(plotOutput("residplot"), height = 250, width=500))
+              ),
+      
+      # Third tab content
+        tabItem(tabName = "PredIntervals",              
+              fluidRow(
+        box(plotOutput("predplot", height = 250)),
+        
+        box(
+          title = "Controls",
+          checkboxGroupInput("Estimate", h5("Display"), 
+                             choices = list("Linear Model (LM) Estimate" = "LMest", 
+                                            "Random Forest (RF) Estimate" = "RFest" 
+                             ),
+                             selected = "1"),
+          checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
+                             choices = list("LM - assumes lin., norm., C.V." = "All", 
+                                            "RF - assumes sym., C.V." = "Some", 
+                                            "RF - assumes none of these" = "None"),
+                             selected = 1), 
+          sliderInput("range", "Range:",
+                      min = 0, max = 50, step=0.05,
+                      value = c(0,5)), 
+          varSelectInput("var", "Variable to Display", Trainx), 
+          sliderInput("level", "Desired Coverage Level:",
+                      min = 0.7, max = 0.95, step=0.05,
+                      value = 0.9)
+        )
+      )
       )
 
     )
@@ -61,15 +80,22 @@ ui <- dashboardPage(
 
 server <- function(input, output) {
   
-  Train <- Data
-  Trainx <-x
-  ns <- 10
-  RF <- randomForest(x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
-  
-
+  ResidbyPredPlot <- function(method){
+    residplot1 <- ggplot(data=data.frame(LM$fitted.values,LM$residuals), aes(x=LM$fitted.values, y=LM$residuals)) +
+      geom_point() + xlab("Predicted") + ylab("Residual") + theme_bw() 
+    residplot2 <- ggplot(data=data.frame(RF$predicted), aes(x=RF$predicted, y=Train$y-RF$predicted))+
+      geom_point() + xlab("Predicted") + ylab("Residual") + theme_bw() 
+    residhist1 <- ggplot(data=data.frame(LM$fitted.values,LM$residuals), aes(x=LM$residuals)) + geom_histogram()
+    residhist2 <- ggplot(data=data.frame(RF$predicted), aes(x=Train$y-RF$predicted)) + geom_histogram()
+    QQPlot1 <- ggplot(data=data.frame(LM$fitted.values,LM$residuals), aes(sample = LM$residuals)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
+    QQPlot2 <- ggplot(data=data.frame(RF$predicted), aes(sample = Train$y-RF$predicted)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
+    p_LM <- grid.arrange(residplot1,residhist1, QQPlot1, ncol=3 )
+    p_RF <- grid.arrange(residplot2,residhist2, QQPlot2, ncol=3 )
+    p <- if(method=="LM"){p_LM}else{p_RF}
+    return(p)
+  }   
   
   MakePreds <- function(var, level){
-  
     varnum <- which(names(Train)==var)
     Means <- data.frame(t(apply(Data, 2, mean, na.rm=TRUE)))
     New <- Means %>% slice(rep(1:1000, each = 1000))
@@ -78,9 +104,7 @@ server <- function(input, output) {
     Test <- New
     Testx <- New %>% select(-y)
     
-      
   alpha = 1-level
-  LM <- lm(data=Train, y~.)
   LMPred <- predict(LM, newdata=Test) 
   LM_PI_Test <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
   LM_PI_Test <- data.frame(LM_PI_Test)
@@ -126,9 +150,12 @@ server <- function(input, output) {
     return(p)
   }   
   
+  residbypredplot <- reactive({ResidbyPredPlot(method=input$method)})  
+  output$residplot <- renderPlot(residbypredplot())
   Preds <- reactive({MakePreds(var=input$var, level=input$level)})
-  Plot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
-  output$plot <- renderPlot(Plot())
+  PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
+  output$predplot <- renderPlot(PredPlot())
+  
     
 }
 
