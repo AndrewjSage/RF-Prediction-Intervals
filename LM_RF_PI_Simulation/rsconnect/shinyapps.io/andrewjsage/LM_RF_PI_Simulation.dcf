@@ -1,0 +1,13 @@
+name: LM_RF_PI_Simulation
+title: LM_RF_PI_Simulation
+username:
+account: andrewjsage
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5079930
+bundleId: 5232373
+url: https://andrewjsage.shinyapps.io/LM_RF_PI_Simulation/
+when: 1636473087.61398
+lastSyncTime: 1636473087.614
+asMultiple: FALSE
+asStatic: FALSE
