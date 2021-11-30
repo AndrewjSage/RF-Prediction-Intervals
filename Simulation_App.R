@@ -96,7 +96,7 @@ fluidRow(
     plotOutput("plot")
     ),
     column(4,
-    tableOutput("MSPEtable"),
+    tableOutput("RMSPEtable"),
     tableOutput("PItable")
     )
    # textOutput("text")
@@ -170,7 +170,7 @@ s3 <-1
     Test <- Dataset %>% filter(Datatype=="Test")
     LM <- lm(data=Train, y~x1)
     LMPred <- predict(LM, newdata=Test) 
-    MSPE_LM <- mean((LMPred-Test$y)^2)
+    RMSPE_LM <- sqrt(mean((LMPred-Test$y)^2))
     LM_PI_Test <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
     LM_PI_Test <- data.frame(LM_PI_Test)
     LM_Contains <- (Test$y >= LM_PI_Test[,2]) & (Test$y <= LM_PI_Test[,3])
@@ -192,7 +192,7 @@ s3 <-1
     
          
     RFPred <- predict(object=RF, newdata=Testx)
-    MSPE_RF <- mean((RFPred - Test$y)^2)
+    RMSPE_RF <- sqrt(mean((RFPred - Test$y)^2))
     # Intervals from Random Forest - Sym. OOB method
     # Assumes constant variance, error distribution symmetric
     OOB_resid <- Train$y - RF$predicted
@@ -262,15 +262,15 @@ CreatePlot <- function(Dataset, data, Estimate, Assumptions, range){
 
 
 
-CalculateMSPE <- function(Dataset, range){
+CalculateRMSPE <- function(Dataset, range){
   Dataset <- Dataset %>% filter(Datatype=="Test")
   Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
-  MSPE_LM <- mean((Dataset$LMPred-Dataset$y)^2)
-  MSPE_RF <- mean((Dataset$RFPred-Dataset$y)^2)
+  RMSPE_LM <- sqrt(mean((Dataset$LMPred-Dataset$y)^2))
+  RMSPE_RF <- sqrt(mean((Dataset$RFPred-Dataset$y)^2))
   Method <- c("Linear Model", "Random Forest")
-  MSPE <- c(MSPE_LM, MSPE_RF)
-  MSPE_Table <- (data.frame(Method, MSPE))
-  return(c(MSPE_Table))
+  RMSPE <- c(RMSPE_LM, RMSPE_RF)
+  RMSPE_Table <- (data.frame(Method, RMSPE))
+  return(c(RMSPE_Table))
 } 
 
 
@@ -295,7 +295,7 @@ EvaluatePI <- function(Dataset, range){
   Plot <- reactive({CreatePlot(Dataset=Preds(), data=input$data, Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$plot <- renderPlot(Plot())
   #MSPE <- reactive(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
-  output$MSPEtable <- renderTable(CalculateMSPE(Dataset=Preds(), range=input$range))
+  output$RMSPEtable <- renderTable(CalculateRMSPE(Dataset=Preds(), range=input$range))
   output$PItable <- renderTable(EvaluatePI(Dataset=Preds(), range=input$range))
     #output$text <- renderText(paste("Linear Model MSPE=",MSPE()[[1]], "Random Forest MSPE=", MSPE()[[2]]))
   #output$table <- renderTable(SimulationRes()[[2]])

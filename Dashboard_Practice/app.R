@@ -1,8 +1,23 @@
 ## app.R ##
 library(shinydashboard)
 
+
+# Boston Housing Data
 x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/x.txt", header=FALSE, sep=" ")
 y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/y.txt", header=FALSE, sep=" ")
+#Insurance
+#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Insur/x.txt", header=FALSE, sep=" ")
+#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Insur/y.txt", header=FALSE, sep=" ")
+#Attend
+#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Attend/x.txt", header=FALSE, sep=" ")
+#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Attend/y.txt", header=FALSE, sep=" ")
+#Baseball
+#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Baseball/x.txt", header=FALSE, sep=" ")
+#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Baseball/y.txt", header=FALSE, sep=" ")
+#Baseball
+#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Budget/x.txt", header=FALSE, sep=" ")
+#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Budget/y.txt", header=FALSE, sep=" ")
+
 names(y) <- "y"
 Data <- cbind(x,y)
 Train <- Data
@@ -26,13 +41,15 @@ ui <- dashboardPage(
       # First tab content
       tabItem(tabName = "Data",
               fluidRow(
-                box(plotOutput("plot", height = 250)),
-                
-                box(
-                  title = "Controls"
+                box(plotOutput("plot", height = 50),
+                    selectInput("data", label = "Data", choices = ls("package:datasets"))
                 )
-              )
-      ),
+              ),
+              fluidRow(
+                box( dataTableOutput("datatable"), height = 500, width=500)),
+      fluidRow(
+        box( verbatimTextOutput("summarytable"), height = 500, width=500))
+    ),
       
       # Second tab content
       tabItem(tabName = "ResPlots",
@@ -155,8 +172,12 @@ server <- function(input, output) {
   Preds <- reactive({MakePreds(var=input$var, level=input$level)})
   PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$predplot <- renderPlot(PredPlot())
-  
-    
+  output$datatable <- renderDataTable(Data, options = list(pageLength = 5))
+  output$summary <- renderDataTable(Data, options = list(pageLength = 5))
+  output$datatable <- renderDataTable(Data, options = list(pageLength = 5))
+  output$summarytable <- renderPrint({ summary(Data) })
+
+
 }
 
 shinyApp(ui, server)

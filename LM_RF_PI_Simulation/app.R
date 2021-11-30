@@ -1,14 +1,8 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+# Shiny App Created by Andrew Sage
 
 
-# Define UI for application that draws a histogram
+
+# Load packages
 library(shiny)
 library(tidyverse)
 library(randomForest)
@@ -61,7 +55,7 @@ ui <- fluidPage(
     
     #sliderInput("c", h5("Constant Variance"),
     #            min = 0, max = 5, value = 0, ticks=FALSE)),
-    column(3, 
+    column(2, 
            selectInput("data", h5("Display"), 
                        choices = list("Training Data" = "Train", 
                                       "Test Data" = "Test"),
@@ -73,7 +67,7 @@ ui <- fluidPage(
                        min = -1, max = 1, step=0.05,
                        value = c(-1,1))
     ), 
-    column(3,
+    column(4,
            checkboxGroupInput("Estimate", h5("Display"), 
                               choices = list("True Expected Response" = "True",
                                              "Linear Model (LM) Estimate" = "LMest", 
@@ -81,12 +75,12 @@ ui <- fluidPage(
                               ),
                               selected = "1"),
            checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
-                              choices = list("LM - assumes lin., norm., C.V." = "All", 
-                                             "RF - assumes sym., C.V." = "Some", 
-                                             "RF - assumes none of these" = "None"),
+                              choices = list("LM - least flexible -assumes lin., norm., C.V." = "All", 
+                                             "RF - moderately flexible - assumes sym., C.V." = "Some", 
+                                             "RF - most flexible -assumes none of these" = "None"),
                               selected = 1)
     ),
-    column(2,
+    column(1,
            actionButton("Regenerate", "Regenerate Data")
     )
   ),
@@ -288,7 +282,7 @@ server <- function(input, output){
     QFE_Width <- mean(Dataset$QFEUpr-Dataset$QFELwr)
     Coverage <- c(LM_Coverage, RF_Coverage, QFE_Coverage)
     Mean_Width <- c(LM_Width, RF_Width, QFE_Width)
-    Interval_Method <- c("LM - assumes lin., norm., C.V., ", "RF - assumes sym., and C.V. ", "RF - assumes none of these")
+    Interval_Method <- c("LM - least flexible - assumes lin., norm., C.V., ", "RF moderately flexible- assumes sym., and C.V. ", "RF - most flexible - assumes none of these")
     PI_Table <- (data.frame(Interval_Method, Coverage, Mean_Width))
     return(c(PI_Table))
   }

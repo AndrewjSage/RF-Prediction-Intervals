@@ -11,8 +11,9 @@
 # Define UI for application that draws a histogram
 library(shiny)
 library(tidyverse)
-library(randomForestSRC)
+library(randomForest)
 library(gridExtra)
+library(forestError)
 
 # Boston Housing Data
 x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/x.txt", header=FALSE, sep=" ")
@@ -82,94 +83,56 @@ server <- function(input, output){
    # Assume linearity, normality, constant variance
    LM <- lm(data=Train, y~.)
    LMpred <- predict(LM, newdata=Test) 
-   MSPE_LM <- mean((LMpred-Test$y)^2)
    LM_PI <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
-   #LM_Contains <- (Test$y >= LM_PI[,2]) & (Test$y <= LM_PI[,3])
-   #Cov_LM <- mean(LM_Contains)
-   Width_LM <- mean(LM_PI[,3]-LM_PI[,2])
+   LM_PI <- data.frame(LM_PI)
+   names(LM_PI) <- c("LM_fit", "LM_lwr", "LM_upr")
    
-   RF <- quantreg(data=Train, y~., method="forest", prob=c(alpha/2, 1-alpha/2), ntree=100, nodesize=ns)
-   RFpredinfo <- quantreg(object=RF, newdata=Test, prob=c(alpha/2, 1-alpha/2))
-   RFpred <- RFpredinfo$predicted
-   MSPE_RF <- mean((RFpred - Test$y)^2)
+   
+   Trainx <- Train %>% select(-c(y))
+   Testx <- Test %>% select(-c(y))
+
+   
    # Intervals from Random Forest - Sym. OOB method
    # Assumes constant variance, error distribution symmetric
-   OOB_resid <- Train$y - RF$predicted.oob
+   RF <- randomForest(x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
+   RFPred <- predict(object=RF, newdata=Testx)
+   
+   OOB_resid <- Train$y - RF$predicted
    MOE <- quantile(abs(OOB_resid), 1-alpha)
-   RF_PI2 <- data.frame(RFpred, RFpred-MOE, RFpred+MOE)
-   #RF2_Contains <- (Test$y >= RF_PI2[,2]) & (Test$y <= RF_PI2[,3])
-   #Coverage_RFOOB_Sym <- mean(RF2_Contains)
-   Width_RFOOB_Sym <- mean(RF_PI2[,3]-RF_PI2[,2])
-   # Intervals from Random Forest - Non. Sym. OOB method
-   # Assumes constant variance
-   Lower <- quantile(OOB_resid, alpha/2)
-   Upper <- quantile(OOB_resid, 1-alpha/2)
-   RF_PI <- data.frame(RFpred, RFpred+Lower, RFpred+Upper)
-   #RF_Contains <- (Test$y >= RF_PI[,2]) & (Test$y <= RF_PI[,3])
-   #Coverage_RFOOB_NonSym <- mean(RF_Contains)
-   Width_RFOOB_NonSym <- mean(RF_PI[,3]-RF_PI[,2])
-   # Intervals from Quantile Random Forest 
-   # Does not assume constant variance
-   # QRFLower <- RFpredinfo$quantreg$quantiles[,1]
-   # QRFUpper <- RFpredinfo$quantreg$quantiles[,2]
-   # QRF_PI <- data.frame(RFpred, QRFLower, QRFUpper)
-   # QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
-   # Coverage_QRF <- mean(QRF_Contains)
-   #Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
-   library(quantregForest)
-   Trainx <- Train[,1:(ncol(Train)-1)]
-   y <- Train$y
-   Testx <- Test[,1:(ncol(Test)-1)]
-   y <- Test$y
-   #Trainx <- data.frame(Train$V1)
-   #names(Trainx) <- "V1"
-   #Testx <- data.frame(Test$V1)
-   #names(Testx) <- "V1"
-   QRF <- quantregForest(x=Trainx, y=Train$y, keep.inbag = TRUE, ntree=100, nodesize=ns)
-   QRFpred <- predict(QRF, newdata = Testx, what=mean)
-   #mean((QRFpred - Test$y)^2)
-   QRFLower <- predict(QRF, newdata=Testx, what=alpha/2)
-   QRFUpper <- predict(QRF, newdata=Testx, what=1-alpha/2)
-   QRF_PI <- data.frame(QRFpred, QRFLower, QRFUpper)
-   #QRF_Contains <- (Test$y >= QRF_PI[,2]) & (Test$y <= QRF_PI[,3])
-   #Coverage_QRF <- mean(QRF_Contains)
-   Width_QRF <- mean(QRF_PI[,3]-QRF_PI[,2])   
+   RF_PI <- data.frame(RFPred, RFPred-MOE, RFPred+MOE)
+   names(RF_PI) <- c("RF_fit", "RF_lwr", "RF_upr")
+   
 
+
+   QFE <- quantForestError(forest=RF, X.train=Trainx, X.test=Testx, Y.train = Test$y,  alpha = alpha)
+   QFE_PI <- data.frame(QFE$estimates[,1], QFE$estimates[,4], QFE$estimates[,5])
+   names(QFE_PI) <- c("QFE_fit", "QFE_lwr", "QFE_upr")
+   
+   
 LM_PI <- data.frame(LM_PI)   
 LM_PI$x <- Test[,varnum]      
 RF_PI$x <- Test[,varnum]      
-RF_PI2$x <- Test[,varnum]      
-QRF_PI$x <- Test[,varnum]      
-names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
+QFE_PI$x <- Test[,varnum]      
+#names(RF_PI) <- names(QFE_PI) <- names(LM_PI)
 
-   
-   #Res_LM <- c(MSPE_LM, Cov_LM, Width_LM)
-   #Res_RFOOBSym <- c(MSPE_RF, Coverage_RFOOB_Sym, Width_RFOOB_Sym)
-   #Res_RFOOBNonSym <- c(MSPE_RF, Coverage_RFOOB_NonSym, Width_RFOOB_NonSym)
-   #Res_QRF <- c(MSPE_RF, Coverage_QRF, Width_QRF)
-   
-  Res_LM <- c(Width_LM)
-  Res_RFOOBSym <- c(Width_RFOOB_Sym)
-  Res_RFOOBNonSym <- c(Width_RFOOB_NonSym)
-  Res_QRF <- c(Width_QRF)
+Prediction_Dataset <- cbind(LM_PI[,c(4,1:3)], RF_PI[,-4], QFE_PI[,-4])
+  
 
-   Res_Table <- t(data.frame(Res_LM, Res_RFOOBSym, Res_RFOOBNonSym, Res_QRF))
-   colnames(Res_Table) <- c("Width")
-   rownames(Res_Table) <- c("Linear Model", "Random Forest with Symmetry Assumption", "Random Forest - No Symmetry Assumption", "Random Forest - No Constant Variance Assumption")
+CreatePlot <- function(Prediction_Dataset, data, Estimate, Assumptions, range){  
+  #Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
+  p <- ggplot(data=Prediction_Dataset, aes(x=x, y=LM_fit)) + xlab("Explanatory Variable (x)") + ylab("Response Variable (y)") + theme_bw() 
+  p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x, y=RF_fit, color="blue"), size=1)}else{p}
+  p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x, y=LM_fit, color="green"), size=1)}else{p}
+  p <- if("All" %in% Assumptions){p + geom_ribbon(aes(ymin=LM_lwr, ymax=LM_upr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
+  p <- if("Some" %in% Assumptions){p + geom_ribbon(aes(ymin=RF_lwr, ymax=RF_upr), linetype=2, alpha=0.3, color="blue", fill="blue")}else{p}
+  p <- if("None" %in% Assumptions){p + geom_ribbon(aes(ymin=QFE_lwr, ymax=QFE_upr), linetype=2, alpha=0.5,  color="purple", fill="purple")}else{p}
+  p <- p + scale_color_identity(name = "Estimate",  breaks = c("green", "blue"), labels = c("Linear Model Estimate", "Random Forest Estimate"),  guide = "legend") #+ 
+  #     scale_color_identity(name = "Interval Method",  breaks = c("grey", "blue", "purple"), labels = c("Linear Model", "Random Forest with Assumptions", "Random Forest without Assumtions"),  guide = "legend")
+  
+  return(p)
+}   
 
-   #Plot <- qplot(Test$V1, Test$y)
-   p1<-ggplot(data=LM_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=LM_PI[,1]), color="red") + ylim(c(1*min(Data$y), 1*max(Data$y)))
-   p1<-p1+geom_ribbon(aes(ymin=LM_PI[,2], ymax=LM_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
-   
-   p2<-ggplot(data=RF_PI2, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI2[,1]), color="red")  + ylim(c(1*min(Data$y), 1*max(Data$y)))
-   p2 <- p2+geom_ribbon(aes(ymin=RF_PI2[,2], ymax=RF_PI2[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Norm., CV") + theme(legend.position = "none")
-   
-   p3<-ggplot(data=RF_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=RF_PI[,1]), color="red")  + ylim(c(1*min(Data$y), 1*max(Data$y)))
-   p3<-p3+geom_ribbon(aes(ymin=RF_PI[,2], ymax=RF_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes CV") + theme(legend.position = "none")
-   
-   p4<-ggplot(data=QRF_PI, aes(x=x, y=fit)) + geom_line(aes(x=x, y=QRF_PI[,1]), color="red")  + ylim(c(1*min(Data$y), 1*max(Data$y)))
-   p4<-p4+geom_ribbon(aes(ymin=QRF_PI[,2], ymax=QRF_PI[,3]), linetype=2, alpha=0.5) + ggtitle("Assumes Lin., Norm., CV") + theme(legend.position = "none")
-   
+
    LM_Res <- data.frame(Train$y)
    names(LM_Res) <- c("y")
    LM_Res$Predicted <- LM$fitted.values
@@ -186,11 +149,11 @@ names(RF_PI) <- names(RF_PI2) <- names(QRF_PI) <- names(LM_PI)
    #Text <- Disp
   
    Plot <- if(Disp == "Linear Model Diagnostics")
-   {grid.arrange(ResidPlot, ResidHist, QQPlot, ResidvsPred, ncol=4)}else{grid.arrange(p1, p2, p3, p4, ncol=2)}
-   Table <- Res_Table
+   {grid.arrange(ResidPlot, ResidHist, QQPlot, ResidvsPred, ncol=4)}else{p}
+#   Table <- Res_Table
    
    
-   return(list(Plot, Table))
+   return(list(Plot))
    }
 
   
