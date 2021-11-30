@@ -1,5 +1,10 @@
 ## app.R ##
 library(shinydashboard)
+library(randomForest)
+library(forestError)
+library(datasets)
+library(tidyverse)
+library(gridExtra)
 
 
 # Boston Housing Data
@@ -42,14 +47,14 @@ ui <- dashboardPage(
       tabItem(tabName = "Data",
               fluidRow(
                 box(plotOutput("plot", height = 50),
-                    selectInput("data", label = "Data", choices = ls("package:datasets"))
-                )
+                    selectInput("dataset", label = "Dataset", choices = ls("package:datasets")))
               ),
               fluidRow(
-                box( dataTableOutput("datatable"), height = 500, width=500)),
+                box( dataTableOutput("table"), height = 400, width=500)),
       fluidRow(
-        box( verbatimTextOutput("summarytable"), height = 500, width=500))
-    ),
+        box(   verbatimTextOutput("summary"), height = 400, width=500)
+    )
+      ),
       
       # Second tab content
       tabItem(tabName = "ResPlots",
@@ -60,7 +65,7 @@ ui <- dashboardPage(
                               choices = list("Linear Model" = "LM", 
                                              "Random Forest" = "RF")))),
               fluidRow(
-                box(plotOutput("residplot"), height = 250, width=500))
+                box(plotOutput("residplot"), height = 500, width=500))
               ),
       
       # Third tab content
@@ -172,12 +177,20 @@ server <- function(input, output) {
   Preds <- reactive({MakePreds(var=input$var, level=input$level)})
   PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$predplot <- renderPlot(PredPlot())
-  output$datatable <- renderDataTable(Data, options = list(pageLength = 5))
-  output$summary <- renderDataTable(Data, options = list(pageLength = 5))
-  output$datatable <- renderDataTable(Data, options = list(pageLength = 5))
-  output$summarytable <- renderPrint({ summary(Data) })
 
-
+  dataset <- reactive({
+    return(data.frame(get(input$dataset, "package:datasets")))
+  })
+  
+  output$summary <- renderPrint({
+    # Use a reactive expression by calling it like a function
+    summary(dataset())
+  })
+  
+  output$table <- renderDataTable({
+    dataset()
+  })
+  
 }
 
 shinyApp(ui, server)
