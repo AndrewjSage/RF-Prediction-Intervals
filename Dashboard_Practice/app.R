@@ -39,6 +39,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Data", tabName = "Data", icon = icon("dashboard")),
+      menuItem("Model", tabName = "Model", icon = icon("th")),
       menuItem("Residual Plots", tabName = "ResPlots", icon = icon("th")),
       menuItem("Prediction Intervals", tabName = "PredIntervals", icon = icon("th"))
     )
@@ -56,11 +57,16 @@ ui <- dashboardPage(
               fluidRow(
                 box( dataTableOutput("table"),width=500)),
       fluidRow(
-        box(   verbatimTextOutput("summary"),width=500)
-    )
+        box(   verbatimTextOutput("summary"),width=500))
       ),
-      
       # Second tab content
+      tabItem(tabName = "Model",
+              fluidRow(box(
+                selectInput("Resp_Var", "Response Variable", character(0))
+              ), 
+              checkboxGroupInput("Exp_Vars", "Explanatory Variables:",character(0))), 
+              box(   verbatimTextOutput("model_summary"),width=500)),
+      # Third tab content
       tabItem(tabName = "ResPlots",
               fluidRow(
                 box(
@@ -72,7 +78,7 @@ ui <- dashboardPage(
                 box(plotOutput("residplot"), height = 500, width=500))
               ),
       
-      # Third tab content
+      # Fourth tab content
         tabItem(tabName = "PredIntervals",              
               fluidRow(
         box(plotOutput("predplot", height = 250)),
@@ -104,29 +110,77 @@ ui <- dashboardPage(
   )
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
   
-  ResidbyPredPlot <- function(method){
-    residplot1 <- ggplot(data=data.frame(LM$fitted.values,LM$residuals), aes(x=LM$fitted.values, y=LM$residuals)) +
+  dataset <- reactive({
+    # return(data.frame(get(input$dataset, "package:datasets")))
+    return(data.frame(get(input$dataset, listOfDataframes)))
+  })
+  observeEvent(dataset(), {
+    choices <- names(dataset())
+    updateCheckboxGroupInput(session, inputId = "Exp_Vars", choices = choices) 
+    updateSelectInput(session, inputId = "Resp_Var", choices = choices)
+  })
+  
+  
+  
+  output$summary <- renderPrint({
+    # Use a reactive expression by calling it like a function
+    summary(dataset())
+  })
+  
+  output$table <- renderDataTable({
+    dataset()
+  })
+  
+  
+  
+  FitModels <- function(Dataset, RespVar, ExpVars){
+    Train <- Dataset %>% select(c(ExpVars, RespVar))
+    Respvarnum <- which(names(Train)==RespVar)  
+    Trainx <- Train %>% select(-c(RespVar))
+    y <- Train[, Respvarnum]
+    ns <- 10
+    RF <- randomForest(x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
+    LM <- lm(data=Trainx, y~.)
+    return(list(RF, LM, Train))
+  }
+  
+  
+  ModelResults <- reactive({FitModels(Dataset = dataset(), RespVar = input$Resp_Var, ExpVars = input$Exp_Vars)})
+  RF <- reactive({ModelResults()[[1]]})
+  LM <- reactive({ModelResults()[[2]]})
+  Train <- reactive({ModelResults()[[3]]})
+  
+  
+  output$model_summary <- renderPrint({
+    # Use a reactive expression by calling it like a function
+    summary(LM())
+  })
+  
+  
+  ResidPlots <- function(LM, RF, Dataset, method, RespVar){
+    Respvarnum <- which(names(Dataset)==RespVar)
+    y <- Dataset[, Respvarnum]
+    residplot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$fitted.values, y=LM()$residuals)) +
       geom_point() + xlab("Predicted") + ylab("Residual") + theme_bw() 
-    residplot2 <- ggplot(data=data.frame(RF$predicted), aes(x=RF$predicted, y=Train$y-RF$predicted))+
+    residplot2 <- ggplot(data=data.frame(RF()$predicted), aes(x=RF()$predicted, y=y-RF()$predicted))+
       geom_point() + xlab("Predicted") + ylab("Residual") + theme_bw() 
-    residhist1 <- ggplot(data=data.frame(LM$fitted.values,LM$residuals), aes(x=LM$residuals)) + geom_histogram()
-    residhist2 <- ggplot(data=data.frame(RF$predicted), aes(x=Train$y-RF$predicted)) + geom_histogram()
-    QQPlot1 <- ggplot(data=data.frame(LM$fitted.values,LM$residuals), aes(sample = LM$residuals)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
-    QQPlot2 <- ggplot(data=data.frame(RF$predicted), aes(sample = Train$y-RF$predicted)) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot")
+    residhist1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$residuals)) + geom_histogram() + theme_bw() 
+    residhist2 <- ggplot(data=data.frame(RF()$predicted), aes(x=y-RF()$predicted)) + geom_histogram() + theme_bw() 
+    QQPlot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(sample = scale(LM()$residuals))) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot") + theme_bw() 
+    QQPlot2 <- ggplot(data=data.frame(RF()$predicted), aes(sample = scale(y-RF()$predicted))) + stat_qq() + stat_qq_line() + xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot") + theme_bw() 
     p_LM <- grid.arrange(residplot1,residhist1, QQPlot1, ncol=3 )
-    p_RF <- grid.arrange(residplot2,residhist2, QQPlot2, ncol=3 )
-    p <- if(method=="LM"){p_LM}else{p_RF}
-    return(p)
+     #p_RF <- grid.arrange(residplot2,residhist2, QQPlot2, ncol=3 )
+    #p <- if(method=="LM"){p_LM}else{p_RF}
+    return(p_LM)
   }   
   
   MakePreds <- function(var, level){
     varnum <- which(names(Train)==var)
-    Means <- data.frame(t(apply(Data, 2, mean, na.rm=TRUE)))
+    Means <- data.frame(t(apply(Train, 2, mean, na.rm=TRUE)))
     New <- Means %>% slice(rep(1:1000, each = 1000))
-    New[,varnum] <- seq(min(Data[,varnum]), max(Data[,varnum]), by=(max(Data[,varnum])-min(Data[,varnum]))/(1000-1))
-    Train <- Data
+    New[,varnum] <- seq(min(Train[,varnum]), max(Train[,varnum]), by=(max(Train[,varnum])-min(Train[,varnum]))/(1000-1))
     Test <- New
     Testx <- New %>% select(-y)
     
@@ -143,7 +197,7 @@ server <- function(input, output) {
   RFPred <- predict(object=RF, newdata=Testx)
   # Intervals from Random Forest - Sym. OOB method
   # Assumes constant variance, error distribution symmetric
-  OOB_resid <- Train$y - RF$predicted
+  OOB_resid <- Train$y - RF()$predicted
   MOE <- quantile(abs(OOB_resid), 1-alpha)
   RF_PI2_Test <- data.frame(RFPred, RFPred-MOE, RFPred+MOE)
   Width_RFOOB_Sym <- mean(RF_PI2_Test[,3]-RF_PI2_Test[,2])
@@ -176,27 +230,17 @@ server <- function(input, output) {
     return(p)
   }   
   
-  residbypredplot <- reactive({ResidbyPredPlot(method=input$method)})  
-  output$residplot <- renderPlot(residbypredplot())
+  residplots <- reactive({ResidPlots(LM=LM(), RF=RF(), Dataset=dataset(), method=input$method, RespVar = input$Resp_Var)})  
+  output$residplot <- renderPlot(residplots())
   Preds <- reactive({MakePreds(var=input$var, level=input$level)})
   PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$predplot <- renderPlot(PredPlot())
 
-  dataset <- reactive({
-   # return(data.frame(get(input$dataset, "package:datasets")))
-    return(data.frame(get(input$dataset, listOfDataframes)))
-  })
   
-  output$summary <- renderPrint({
-    # Use a reactive expression by calling it like a function
-    summary(dataset())
-  })
-  
-  output$table <- renderDataTable({
-    dataset()
-  })
-  
+   
 }
+
+
 
 
 shinyApp(ui, server)
