@@ -5,23 +5,25 @@ library(forestError)
 library(datasets)
 library(tidyverse)
 library(gridExtra)
+library(mlbench)
+
+
+library(mlbench)
+data("BostonHousing")
+Boston_Housing <- BostonHousing %>% select_if(is.numeric)
+library(ISLR)
+data("Auto")
+Auto <- Auto %>% select_if(is.numeric)
+data("Carseats")
+Carseats <- Carseats %>% select_if(is.numeric)
+
+listOfDataframes <- list(Boston_Housing, Auto, Carseats)
+names(listOfDataframes) = c("Boston_Housing","Auto","Carseats")
 
 
 # Boston Housing Data
 x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/x.txt", header=FALSE, sep=" ")
 y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/y.txt", header=FALSE, sep=" ")
-#Insurance
-#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Insur/x.txt", header=FALSE, sep=" ")
-#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Insur/y.txt", header=FALSE, sep=" ")
-#Attend
-#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Attend/x.txt", header=FALSE, sep=" ")
-#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Attend/y.txt", header=FALSE, sep=" ")
-#Baseball
-#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Baseball/x.txt", header=FALSE, sep=" ")
-#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Baseball/y.txt", header=FALSE, sep=" ")
-#Baseball
-#x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Budget/x.txt", header=FALSE, sep=" ")
-#y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Budget/y.txt", header=FALSE, sep=" ")
 
 names(y) <- "y"
 Data <- cbind(x,y)
@@ -46,13 +48,15 @@ ui <- dashboardPage(
       # First tab content
       tabItem(tabName = "Data",
               fluidRow(
-                box(plotOutput("plot", height = 50),
-                    selectInput("dataset", label = "Dataset", choices = ls("package:datasets")))
+                box(plotOutput("plot", height = 10),
+                   selectInput("dataset", label = "Dataset", choices = c("Boston_Housing" = "Boston_Housing", 
+                                                                         "Auto"="Auto", 
+                                                                         "Carseats" = "Carseats")))
               ),
               fluidRow(
-                box( dataTableOutput("table"), height = 400, width=500)),
+                box( dataTableOutput("table"),width=500)),
       fluidRow(
-        box(   verbatimTextOutput("summary"), height = 400, width=500)
+        box(   verbatimTextOutput("summary"),width=500)
     )
       ),
       
@@ -179,7 +183,8 @@ server <- function(input, output) {
   output$predplot <- renderPlot(PredPlot())
 
   dataset <- reactive({
-    return(data.frame(get(input$dataset, "package:datasets")))
+   # return(data.frame(get(input$dataset, "package:datasets")))
+    return(data.frame(get(input$dataset, listOfDataframes)))
   })
   
   output$summary <- renderPrint({
@@ -192,5 +197,6 @@ server <- function(input, output) {
   })
   
 }
+
 
 shinyApp(ui, server)
