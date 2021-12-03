@@ -96,10 +96,12 @@ ui <- dashboardPage(
                                             "RF - assumes sym., C.V." = "Some", 
                                             "RF - assumes none of these" = "None"),
                              selected = 1), 
-          sliderInput("range", "Range:",
-                      min = 0, max = 50, step=0.05,
-                      value = c(0,5)), 
-          selectInput("var", "Variable to Display", character(0)), 
+         uiOutput("range_slider"),
+     #      sliderInput("range", "Range:",
+    #                  min = 0, max = 50, step=1,
+    #                  value = c(0,5)), 
+          #selectInput("var", "Variable to Display", character(0)), 
+          uiOutput("varSelection"),
           sliderInput("level", "Desired Coverage Level:",
                       min = 0.7, max = 0.95, step=0.05,
                       value = 0.9)
@@ -111,18 +113,116 @@ ui <- dashboardPage(
   )
 )
 
+
+
+
+
 server <- function(input, output, session) {
   
+  
+  #output$varSelection <- renderUI({
+updatevarlist <- reactive({
+    req(input$dataset)
+    choices = names(data.frame(get(input$dataset, listOfDataframes)))
+    selectInput("var", "Variable to Display", choices = choices)
+  })
+  
+output$varSelection <- renderUI(updatevarlist())
+  
+
+#  observeEvent(dataset(), {
+#    choices = names(data.frame(get(input$dataset, listOfDataframes)))
+#    updateSelectInput(session, inputId = "var", choices = choices)
+#  })  
+
+  
+    
+  var <- reactive({
+    return(input$var)
+  })
+  
   dataset <- reactive({
-    # return(data.frame(get(input$dataset, "package:datasets")))
-    return(data.frame(get(input$dataset, listOfDataframes)))
+        req(input$dataset)
+        return(data.frame(get(input$dataset, listOfDataframes)))
   })
   observeEvent(dataset(), {
     choices <- names(dataset())
     updateCheckboxGroupInput(session, inputId = "Exp_Vars", choices = choices) 
     updateSelectInput(session, inputId = "Resp_Var", choices = choices)
-  #  updateSelectInput(session, inputId = "var", choices = choices)
+#    updateSelectInput(session, inputId = "var", choices = choices)
   })
+
+#  observe({
+#    req(input$var)
+#    var <- input$var
+#    dataset <- data.frame(get(input$dataset, listOfDataframes))
+#    Variable <- dataset %>% select(var)
+ #   #Variable <- Boston_Housing$crim
+#    updateSliderInput(session, inputId = "range", min=min(Variable), 
+#                      max=max(Variable),
+#                      step=(max(Variable)-min(Variable))/50, 
+#                      value=c(min(Variable), max(Variable)))})
+  
+  
+#update_range_slider <- reactive({
+#    req(input$dataset)
+#    req(input$var)
+#    #var <- input$var
+#    #dataset <- data.frame(get(input$dataset, listOfDataframes))
+#    var <- var()
+#    dataset <-
+#    choices <- names(data.frame(get(input$dataset, listOfDataframes)))
+#    Variable <- dataset %>% select(var)
+#    return(sliderInput(session, inputId = "range", min=min(Variable), 
+#               max=max(Variable),
+#               step=(max(Variable)-min(Variable))/50, 
+#               value=c(min(Variable), max(Variable))))})
+  
+#  output$range_slider <- renderUI(update_range_slider())
+  
+  
+#output$range_slider <- renderUI({
+#  tagList(
+#    sliderInput("range", "range", min=0, max=10, step=1,value=c(2,8))
+#  )
+#})
+
+
+output$range_slider <- renderUI({
+      req(input$dataset)
+      req(input$var)
+      var <- input$var
+      dataset <- data.frame(get(input$dataset, listOfDataframes))
+      Variable <- dataset %>% select(var)
+  tagList(
+    sliderInput("range", "range", min=min(Variable), max=max(Variable), 
+                step=(max(Variable)-min(Variable))/50,
+                value=c(min(Variable), max(Variable))))})
+
+  #output$range_slider <- renderUI(update_range_slider)
+  
+  
+#output$range_slider <- renderUI({
+#    req(input$dataset)
+#    req(input$var)
+#    var <- input$var
+#    dataset <- data.frame(get(input$dataset, listOfDataframes))
+#    choices <- names(data.frame(get(input$dataset, listOfDataframes)))
+#    Variable <- dataset %>% select(var)
+#    taglist(
+#    sliderInput("range", "range", 
+#              min=min(Variable), 
+#               max=max(Variable),
+#               step=(max(Variable)-min(Variable))/50, 
+#               value=c(min(Variable), max(Variable))))})
+
+  
+  
+  
+  
+  
+    
+  
   
   Resp_Var <- reactive({
     return(input$Resp_Var)
@@ -136,9 +236,17 @@ server <- function(input, output, session) {
     return(input$method)
   })
   
-  var <- reactive({
-    return(input$var)
-  })
+  
+
+# observeEvent(var(), {
+#    Dataset <- data.frame(get(input$dataset, listOfDataframes))
+#    varnum <- which(names(Dataset)==input$var)
+#    updateSliderInput(session, inputId = "range", min=min(Dataset[,varnum]), 
+#                                                    max=max(Dataset[,varnum]),
+#                                                    step=(max(Dataset[,varnum])-min(Dataset[,varnum]))/50, 
+#                                                    value=c(min(Dataset[,varnum]), max(Dataset[,varnum])))})
+  
+  
   
   level <- reactive({
     return(input$level)
@@ -176,10 +284,10 @@ server <- function(input, output, session) {
   Train <- reactive({ModelResults()[[3]]})
   
   
-  observeEvent(dataset(), {
-    choices <- names(dataset())
-    updateSelectInput(session, inputId = "var", choices = choices)
-  })
+#  observeEvent(dataset(), {
+#    choices <- names(dataset())
+#    updateSelectInput(session, inputId = "var", choices = choices)
+#  })
   
   output$model_summary <- renderPrint({
     # Use a reactive expression by calling it like a function
