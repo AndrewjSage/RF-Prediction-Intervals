@@ -108,7 +108,9 @@ ui <- dashboardPage(
                 width=3
                 ), 
                 box(
-                uiOutput("set_variable_values"), width=3
+                uiOutput("set_variable_values"), width=10, 
+                verbatimTextOutput("printvarvalues")
+                #textOutput(("printvarvalues"))
                 )
                 )
       )
@@ -322,8 +324,10 @@ server <- function(input, output, session) {
   
   
   
-  output$set_variable_values <- renderUI({
-    req(input$dataset)
+#  output$set_variable_values <- renderUI({
+
+varvals <- reactive({
+      req(input$dataset)
     dataset <- data.frame(get(input$dataset, listOfDataframes))
     
     my_cols <- names(dataset)
@@ -351,10 +355,21 @@ server <- function(input, output, session) {
   
   
   
+output$set_variable_values <- renderUI({varvals()})  
+#output$printvarvalues <- renderPrint(varvals())  
+
+variablevaluedf <- reactive({
+var.vals <- varvals()
+varvalsunlisted <- unlist(var.vals)
+variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
+variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=11)]
+return(data.frame(variablenames, variablevalues))
+})
+
   
-  
-  
-  
+#output$printvarvalues <- renderPrint(unlist(varvals())[seq(from=11, to=length(unlist(varvals())), by=11)])  
+
+output$printvarvalues <- renderPrint(variablevaluedf())  
   
   
   
