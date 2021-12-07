@@ -108,8 +108,10 @@ ui <- dashboardPage(
                 width=3
                 ), 
                 box(
-                uiOutput("set_variable_values"), width=10, 
-                verbatimTextOutput("printvarvalues")
+                uiOutput("set_variable_values"), 
+                verbatimTextOutput("printvarvalues"),
+                actionButton("goButton", "Update Table",icon("cloud-upload")), 
+                width=3
                 #textOutput(("printvarvalues"))
                 )
                 )
@@ -118,6 +120,7 @@ ui <- dashboardPage(
     )
   )
 )
+
 
 
 
@@ -350,21 +353,47 @@ varvals <- reactive({
       return(output)
     })
     
-    return(tagList(ui_elems))
-  })  
+    TagList <- tagList(ui_elems)
+  return(TagList)
+    #  varvalsunlisted <- unlist(TagList)
+  #  variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
+  #  variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=11)]
+   # return(c(TagList, data.frame(variablenames, variablevalues)))
+      })  
   
   
   
 output$set_variable_values <- renderUI({varvals()})  
 #output$printvarvalues <- renderPrint(varvals())  
 
-variablevaluedf <- reactive({
+
+
+
+
+
+
+variablevaluedf <- eventReactive(input$goButton, {
+#variablevaluedf <-reactive({
 var.vals <- varvals()
 varvalsunlisted <- unlist(var.vals)
 variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
 variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=11)]
+
+
+req(input$dataset)
+dataset <- data.frame(get(input$dataset, listOfDataframes))
+my_cols <- names(dataset)
+
+for ( i in 1:length(my_cols)) {
+var <- my_cols[i]
+inputname <- paste("input", var, sep="_")
+variablevalues[i] <- input[[inputname]]
+}
 return(data.frame(variablenames, variablevalues))
-})
+}
+)
+
+
 
   
 #output$printvarvalues <- renderPrint(unlist(varvals())[seq(from=11, to=length(unlist(varvals())), by=11)])  
