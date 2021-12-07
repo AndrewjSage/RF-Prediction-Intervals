@@ -389,14 +389,11 @@ var <- my_cols[i]
 inputname <- paste("input", var, sep="_")
 variablevalues[i] <- input[[inputname]]
 }
+#return(list(variablevalues, my_cols))
 return(data.frame(variablenames, variablevalues))
 }
 )
 
-
-
-  
-#output$printvarvalues <- renderPrint(unlist(varvals())[seq(from=11, to=length(unlist(varvals())), by=11)])  
 
 output$printvarvalues <- renderPrint(variablevaluedf())  
   
@@ -404,10 +401,16 @@ output$printvarvalues <- renderPrint(variablevaluedf())
   
   
   
-  MakePreds <- function(Trainx, LM, RF, var, level){
+  MakePreds <- function(Trainx, LM, RF, var, level, Variables){
+    Variables <- data.frame(Variables)
+    varvalues <- as.numeric(Variables[,2])
+    varnames <- Variables[,1]
+#    Means <- data.frame(t(apply(Trainx, 2, mean, na.rm=TRUE)))
+#    New <- Means %>% slice(rep(1:1000, each = 1000))
+    Entries <- data.frame(t(varvalues))
+    names(Entries) <- varnames
+    New <- Entries %>% slice(rep(1:1000, each = 1000))
     varnum <- which(names(Trainx)==var)
-    Means <- data.frame(t(apply(Trainx, 2, mean, na.rm=TRUE)))
-    New <- Means %>% slice(rep(1:1000, each = 1000))
     New[,varnum] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
     Test <- New
     Testx <- New
@@ -454,7 +457,7 @@ output$printvarvalues <- renderPrint(variablevaluedf())
   
   residplots <- reactive({ResidPlots(LM=LM(), RF=RF(), Dataset=Train(), RespVar = Resp_Var(), method=method())})  
   output$residplot <- renderPlot(residplots())
-  Preds <- reactive({MakePreds(Trainx = dataset(), LM=LM(), RF=RF(), var=var(), level=level())})
+  Preds <- reactive({MakePreds(Trainx = dataset(), LM=LM(), RF=RF(), var=var(), level=level(), Variables = variablevaluedf())})
   PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$predplot <- renderPlot(PredPlot())
   
