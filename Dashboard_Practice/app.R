@@ -109,17 +109,19 @@ ui <- dashboardPage(
                 ), 
                 box(
                 uiOutput("set_variable_values"), 
-                verbatimTextOutput("printvarvalues"),
+                #verbatimTextOutput("printvarvalues"),
+                tableOutput("printvarvalues"),
                 actionButton("goButton", "Update Table",icon("cloud-upload")), 
                 width=3
                 #textOutput(("printvarvalues"))
                 )
                 )
       )
-      
-    )
+    ),
+    fluidRow(
+      box(tableOutput("ShowTestData"), width=6)
   )
-)
+))
 
 
 
@@ -390,12 +392,13 @@ inputname <- paste("input", var, sep="_")
 variablevalues[i] <- input[[inputname]]
 }
 #return(list(variablevalues, my_cols))
+variablevalues <- as.numeric(as.character(variablevalues))
 return(data.frame(variablenames, variablevalues))
 }
 )
 
 
-output$printvarvalues <- renderPrint(variablevaluedf())  
+output$printvarvalues <- renderTable(variablevaluedf())  
   
   
   
@@ -403,7 +406,7 @@ output$printvarvalues <- renderPrint(variablevaluedf())
   
   MakePreds <- function(Trainx, LM, RF, var, level, Variables){
     Variables <- data.frame(Variables)
-    varvalues <- as.numeric(Variables[,2])
+    varvalues <- Variables[,2]
     varnames <- Variables[,1]
 #    Means <- data.frame(t(apply(Trainx, 2, mean, na.rm=TRUE)))
 #    New <- Means %>% slice(rep(1:1000, each = 1000))
@@ -442,6 +445,8 @@ output$printvarvalues <- renderPrint(variablevaluedf())
     return(Test)
   }
   
+
+  
   CreatePlot <- function(Test, Estimate, Assumptions, range){  
     Dataset <- Test %>% filter(x1 >= range[1] & x1 <= range[2]) 
     p <- ggplot(data=Dataset) + xlab("Explanatory Variable (x)") + ylab("Response Variable (y)") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
@@ -458,6 +463,7 @@ output$printvarvalues <- renderPrint(variablevaluedf())
   residplots <- reactive({ResidPlots(LM=LM(), RF=RF(), Dataset=Train(), RespVar = Resp_Var(), method=method())})  
   output$residplot <- renderPlot(residplots())
   Preds <- reactive({MakePreds(Trainx = dataset(), LM=LM(), RF=RF(), var=var(), level=level(), Variables = variablevaluedf())})
+  output$ShowTestData <- renderTable(Preds())    
   PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$predplot <- renderPlot(PredPlot())
   
