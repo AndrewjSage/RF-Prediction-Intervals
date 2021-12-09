@@ -24,19 +24,6 @@ listOfDataframes <- list(Boston_Housing, Auto, Carseats)
 names(listOfDataframes) = c("Boston_Housing","Auto","Carseats")
 
 
-# Boston Housing Data
-x <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/x.txt", header=FALSE, sep=" ")
-y <- read.delim("https://raw.githubusercontent.com/haozhestat/RFIntervals/master/DataAnalysis/data/nipsdata/Boston/y.txt", header=FALSE, sep=" ")
-
-names(y) <- "y"
-Data <- cbind(x,y)
-Train <- Data
-Trainx <-x
-ns <- 10
-RF <- randomForest(x=Trainx, y=Train$y, nodesize=ns, method="forest", keep.inbag = TRUE)
-LM <- lm(data=Train, y~.)
-
-
 ui <- dashboardPage(
   dashboardHeader(title = "Basic dashboard"),
   dashboardSidebar(
@@ -54,8 +41,11 @@ ui <- dashboardPage(
                 box( selectInput("dataset", label = "Dataset", choices = c("Boston_Housing" = "Boston_Housing", 
                                                                           "Auto"="Auto", 
                                                                           "Carseats" = "Carseats")),
-                     selectInput("Resp_Var", "Response Variable", character(0)),
-                     checkboxGroupInput("Exp_Vars", "Explanatory Variables Used in Model:",character(0)), width=10)
+                     uiOutput("Resp_Var_Choice"),
+                     uiOutput("Exp_Vars_Choice")
+                     #selectInput("Resp_Var", "Response Variable", character(0)),
+                     #checkboxGroupInput("Exp_Vars", "Explanatory Variables Used in Model:",character(0)), width=10)
+              )
               ), 
               column(8,
                   box(title="Summary of Variables in Dataset", verbatimTextOutput("summary"), width=20
@@ -70,7 +60,7 @@ ui <- dashboardPage(
       tabItem(tabName = "PredIntervals",   
               fluidRow(
                 column(width=12, 
-                       box(title = " Linear Model Residual and Diagnostic Plots", plotOutput("residplot",  width="100%", height="200px"), height=250, width=12)
+                       box(title = "Linear Model Residual and Diagnostic Plots", plotOutput("residplot",  width="100%", height="200px"), height=250, width=12)
                 )
               ),
 
@@ -78,6 +68,11 @@ ui <- dashboardPage(
                 box(width=10, title = "Prediction Interval Plot",
                   column(width=12, 
                   fluidRow(plotOutput("predplot", width="100%", height="450px")), 
+                 # fluidRow(tableOutput("Trainx")), 
+                #  fluidRow(tableOutput("printvarvalues")),
+                #  fluidRow(tableOutput("Testx")),
+                  
+                  
                   fluidRow(
                            column(3,
                                   checkboxGroupInput("Estimate", h5("Display"), 
@@ -97,7 +92,7 @@ ui <- dashboardPage(
                                   uiOutput("varSelection") 
                                  # selectInput("method", h5("method"), 
                                 #              choices = list("Linear Model" = "LM", 
-                                 #                            "Random Forest" = "RF"))
+                                #                             "Random Forest" = "RF"))
                            ),
                            column(3,
                                   uiOutput("range_slider"),
@@ -126,71 +121,66 @@ server <- function(input, output, session) {
   #output$varSelection <- renderUI({
   updatevarlist <- reactive({
     req(input$dataset)
-    choices = names(data.frame(get(input$dataset, listOfDataframes)))
+    choices = names(data.frame(get(input$dataset, listOfDataframes))%>%select(c(input$Exp_Vars))) 
     selectInput("var", "Variable to Display", choices = choices)
   })
   
   output$varSelection <- renderUI(updatevarlist())
   
   
-  #  observeEvent(dataset(), {
-  #    choices = names(data.frame(get(input$dataset, listOfDataframes)))
-  #    updateSelectInput(session, inputId = "var", choices = choices)
-  #  })  
-  
-  
   
   var <- reactive({
-    return(input$var)
+      return(input$var)
   })
   
   dataset <- reactive({
     req(input$dataset)
     return(data.frame(get(input$dataset, listOfDataframes)))
   })
+  
   observeEvent(dataset(), {
     choices <- names(dataset())
     updateCheckboxGroupInput(session, inputId = "Exp_Vars", choices = choices) 
     updateSelectInput(session, inputId = "Resp_Var", choices = choices)
-    #    updateSelectInput(session, inputId = "var", choices = choices)
   })
   
-  #  observe({
-  #    req(input$var)
-  #    var <- input$var
-  #    dataset <- data.frame(get(input$dataset, listOfDataframes))
-  #    Variable <- dataset %>% select(var)
-  #   #Variable <- Boston_Housing$crim
-  #    updateSliderInput(session, inputId = "range", min=min(Variable), 
-  #                      max=max(Variable),
-  #                      step=(max(Variable)-min(Variable))/50, 
-  #                      value=c(min(Variable), max(Variable)))})
+  
+output$Resp_Var_Choice <- renderUI({
+    req(input$dataset)
+    dataset <- data.frame(get(input$dataset, listOfDataframes))
+    choices <- names(dataset)
+    selectInput("Resp_Var", "Response Variable", choices)
+  })
+  
+output$Exp_Vars_Choice <- renderUI({
+    req(input$dataset)
+    req(input$Resp_Var)
+    dataset <- data.frame(get(input$dataset, listOfDataframes))
+    choices <- names(dataset %>% select(-c(Resp_Var())))
+    checkboxGroupInput(inputId = "Exp_Vars", label="Explanatory Variable(s)", choices = choices) 
+  })
+  
+
+  Resp_Var <- reactive({
+    req(input$dataset)
+    req(input$Resp_Var)
+    return(input$Resp_Var)
+  })
+  
+Exp_Vars <- reactive({
+    #req(input$dataset)
+    #req(input$Resp_Var)
+    return(input$Exp_Vars)
+ })
   
   
-  #update_range_slider <- reactive({
-  #    req(input$dataset)
-  #    req(input$var)
-  #    #var <- input$var
-  #    #dataset <- data.frame(get(input$dataset, listOfDataframes))
-  #    var <- var()
-  #    dataset <-
-  #    choices <- names(data.frame(get(input$dataset, listOfDataframes)))
-  #    Variable <- dataset %>% select(var)
-  #    return(sliderInput(session, inputId = "range", min=min(Variable), 
-  #               max=max(Variable),
-  #               step=(max(Variable)-min(Variable))/50, 
-  #               value=c(min(Variable), max(Variable))))})
+#  observeEvent(Resp_Var(), {
+#    req(input$Resp_Var)
+#    choices <- names(dataset() %>% select(-c(input$Resp_Var)))
+#    updateCheckboxGroupInput(session, inputId = "Exp_Vars", choices = choices) 
+#  })
   
-  #  output$range_slider <- renderUI(update_range_slider())
-  
-  
-  #output$range_slider <- renderUI({
-  #  tagList(
-  #    sliderInput("range", "range", min=0, max=10, step=1,value=c(2,8))
-  #  )
-  #})
-  
-  
+
   output$range_slider <- renderUI({
     req(input$dataset)
     req(input$var)
@@ -202,52 +192,10 @@ server <- function(input, output, session) {
                   step=(max(Variable)-min(Variable))/50,
                   value=c(min(Variable), max(Variable))))})
   
-  #output$range_slider <- renderUI(update_range_slider)
-  
-  
-  #output$range_slider <- renderUI({
-  #    req(input$dataset)
-  #    req(input$var)
-  #    var <- input$var
-  #    dataset <- data.frame(get(input$dataset, listOfDataframes))
-  #    choices <- names(data.frame(get(input$dataset, listOfDataframes)))
-  #    Variable <- dataset %>% select(var)
-  #    taglist(
-  #    sliderInput("range", "range", 
-  #              min=min(Variable), 
-  #               max=max(Variable),
-  #               step=(max(Variable)-min(Variable))/50, 
-  #               value=c(min(Variable), max(Variable))))})
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  Resp_Var <- reactive({
-    return(input$Resp_Var)
-  })
-  
-  Exp_Vars <- reactive({
-    return(input$Exp_Vars)
-  })
-  
+
   method <- reactive({
     return(input$method)
   })
-  
-  
-  
-  # observeEvent(var(), {
-  #    Dataset <- data.frame(get(input$dataset, listOfDataframes))
-  #    varnum <- which(names(Dataset)==input$var)
-  #    updateSliderInput(session, inputId = "range", min=min(Dataset[,varnum]), 
-  #                                                    max=max(Dataset[,varnum]),
-  #                                                    step=(max(Dataset[,varnum])-min(Dataset[,varnum]))/50, 
-  #                                                    value=c(min(Dataset[,varnum]), max(Dataset[,varnum])))})
   
   
   
@@ -272,12 +220,12 @@ server <- function(input, output, session) {
     #   Train <- Dataset
     Respvarnum <- which(names(Train)==RespVar)  
     #  names(Train)[Respvarnum] <- "y"
-    Trainx <- Train %>% select(-c(RespVar))
+    Trainx <- Dataset %>% select(c(ExpVars))
     y <- Train[, Respvarnum]
     ns <- 10
     RF <- randomForest(x=Trainx, y=y, nodesize=ns, method="forest", keep.inbag = TRUE)
     LM <- lm(data=Trainx, y~.)
-    return(list(RF, LM, Train))
+    return(list(RF, LM, Train, Trainx))
   }
   
   
@@ -285,12 +233,14 @@ server <- function(input, output, session) {
   RF <- reactive({ModelResults()[[1]]})
   LM <- reactive({ModelResults()[[2]]})
   Train <- reactive({ModelResults()[[3]]})
+  Trainx <- reactive({ModelResults()[[4]]})
   
   
-  #  observeEvent(dataset(), {
-  #    choices <- names(dataset())
-  #    updateSelectInput(session, inputId = "var", choices = choices)
-  #  })
+  output$Trainx <- renderTable(head(Trainx()))
+  
+  #output$Trainx <- renderTable(RF()$predicted)
+  
+  
   
   output$model_summary <- renderTable({
     # Use a reactive expression by calling it like a function
@@ -319,15 +269,12 @@ server <- function(input, output, session) {
   }   
   
   
-  
-  
-#  output$set_variable_values <- renderUI({
-
 varvals <- reactive({
       req(input$dataset)
     dataset <- data.frame(get(input$dataset, listOfDataframes))
     
-    my_cols <- names(dataset)
+    my_cols <- input$Exp_Vars
+    dataset <- dataset %>% select(c(input$Exp_Vars, input$Resp_Var))
     
     ui_elems <- purrr::map(my_cols, ~{
       if (class(dataset[[.x]]) %in% c("factor", "character")){
@@ -349,25 +296,14 @@ varvals <- reactive({
     
     TagList <- tagList(ui_elems)
   return(TagList)
-    #  varvalsunlisted <- unlist(TagList)
-  #  variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
-  #  variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=11)]
-   # return(c(TagList, data.frame(variablenames, variablevalues)))
       })  
   
   
   
 output$set_variable_values <- renderUI({varvals()})  
-#output$printvarvalues <- renderPrint(varvals())  
-
-
-
-
-
 
 
 variablevaluedf <- eventReactive(input$goButton, {
-#variablevaluedf <-reactive({
 var.vals <- varvals()
 varvalsunlisted <- unlist(var.vals)
 variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
@@ -376,6 +312,8 @@ variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=
 
 req(input$dataset)
 dataset <- data.frame(get(input$dataset, listOfDataframes))
+#dataset <- dataset %>% select(c(input$Exp_Vars, input$Resp_Var))
+dataset <- dataset %>% select(c(input$Exp_Vars))
 my_cols <- names(dataset)
 
 for ( i in 1:length(my_cols)) {
@@ -392,11 +330,34 @@ return(data.frame(variablenames, variablevalues))
 
 output$printvarvalues <- renderTable(variablevaluedf())  
   
+
+
+MakeTest <- function(Trainx, LM, RF, var, level, Variables){
+  Variables <- data.frame(Variables)
+  varvalues <- Variables[,2]
+  varnames <- Variables[,1]
+  #    Means <- data.frame(t(apply(Trainx, 2, mean, na.rm=TRUE)))
+  #    New <- Means %>% slice(rep(1:1000, each = 1000))
+  Entries <- data.frame(t(varvalues))
+  names(Entries) <- varnames
+  New <- Entries %>% slice(rep(1:1000, each = 1000))
+  varnum <- which(names(Trainx)==var)
+  New[,varnum] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
+  Test <- New
+  Testx <- New
+return(Testx)
+}
+
+Testxset <- reactive({MakeTest(Trainx = dataset(), LM=LM(), RF=RF(), var=var(), level=level(), Variables = variablevaluedf())})
+
+output$Testx <- renderTable({
+  req(variablevaluedf)
+  return(head(Testxset()))})  
   
   
   
-  
-  MakePreds <- function(Trainx, LM, RF, var, level, Variables){
+MakePreds <- function(Trainx, LM, RF, var, level, Variables){
+  req(Variables)
     Variables <- data.frame(Variables)
     varvalues <- Variables[,2]
     varnames <- Variables[,1]
@@ -436,7 +397,6 @@ output$printvarvalues <- renderTable(variablevaluedf())
     Test$x1 <- Test[,varnum]   
     return(Test)
   }
-  
 
   
   CreatePlot <- function(Test, Estimate, Assumptions, range){  
@@ -454,7 +414,7 @@ output$printvarvalues <- renderTable(variablevaluedf())
   
   residplots <- reactive({ResidPlots(LM=LM(), RF=RF(), Dataset=Train(), RespVar = Resp_Var(), method="LM")})  
   output$residplot <- renderPlot(residplots())
-  Preds <- reactive({MakePreds(Trainx = dataset(), LM=LM(), RF=RF(), var=var(), level=level(), Variables = variablevaluedf())})
+  Preds <- reactive({MakePreds(Trainx = Trainx(), LM=LM(), RF=RF(), var=var(), level=level(), Variables = variablevaluedf())})
   output$ShowTestData <- renderTable(Preds())    
   PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$predplot <- renderPlot(PredPlot())
