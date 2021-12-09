@@ -49,9 +49,13 @@ ui <- dashboardPage(
               )
               ), 
               column(8,
-                  box(title="Summary of Variables in Dataset", verbatimTextOutput("summary"), width=20
+                  box(title="Summary of Variables in Dataset",
+                      selectInput(inputId="displaytype", label = "Display:", choices = c("Raw Data" = "rawdata", 
+                                                                            "Summary Table" = "summarytable"),
+                                                                              selected="summarytable"),
+                      uiOutput("Table_or_Summary"), width=30
                       ), 
-                         box(title="Coefficients Table", tableOutput("model_summary"), width=20)
+                         box(title="Coefficients Table", tableOutput("model_summary"), width=30)
                        )
                 )
               ),
@@ -119,6 +123,7 @@ ui <- dashboardPage(
 server <- function(input, output, session) {
   
   
+
   #output$varSelection <- renderUI({
   updatevarlist <- reactive({
     req(input$dataset)
@@ -207,10 +212,29 @@ Exp_Vars <- reactive({
     summary(dataset())
   })
   
-  output$table <- renderDataTable({
-    dataset()
-  })
-  
+  output$table <- renderDataTable(
+    dataset(), options = list("pageLength" = 10)
+  )
+
+
+output$Table_or_Summary <- renderUI({
+  if (input$displaytype=="summarytable") {
+    verbatimTextOutput("summary") 
+  } else {                      
+    dataTableOutput("table") 
+  }
+})
+
+
+
+
+DataDisplay <- function(displaytype){
+  dataset <- data.frame(get(input$dataset, listOfDataframes))
+  if(displaytype=="table"){dataset()}else{
+    summary(dataset())
+  }
+}
+
   
   
   FitModels <- function(Dataset, RespVar, ExpVars){
@@ -239,28 +263,37 @@ Exp_Vars <- reactive({
   
   
   output$model_summary <- renderTable({
+    req(Exp_Vars())
     # Use a reactive expression by calling it like a function
     tidy(summary(LM()))
   })
   
   
-  ResidPlots <- function(LM, RF, Dataset, RespVar, method){
+  ResidPlots <- function(LM, RF, Dataset, RespVar, method, xvar){
+    req(Exp_Vars())
+    req(input$var)
     Respvarnum <- which(names(Dataset)==RespVar)
     y <- Dataset[, Respvarnum]
+    xvarnum <- which(names(Dataset)==xvar)
+    x <- Dataset[, xvarnum]
     if(method=="LM"){
       residplot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$fitted.values, y=LM()$residuals)) +
-        geom_point() + xlab("Predicted") + ylab("Residual") + theme_bw() 
-      residhist1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$residuals)) + geom_histogram() + theme_bw()
+        geom_point() + xlab("Predicted Value") + ylab("Residual") + ggtitle("Residual by Predicted Plot") + theme_bw()  
+      residhist1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$residuals)) + geom_histogram() + ggtitle("Histogram of Residuals") + theme_bw() 
       QQPlot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(sample = scale(LM()$residuals))) + stat_qq() + stat_qq_line() + 
         xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot") + theme_bw() 
-      p <- grid.arrange(residplot1,residhist1, QQPlot1, ncol=3 )
+      residbypredplot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=x, y=LM()$residuals)) +
+        geom_point() + xlab(paste(xvar)) + ylab("Residual") + ggtitle("Residual by Predictor Variable Plot") + theme_bw() 
+      p <- grid.arrange(residplot1,residhist1, QQPlot1, residbypredplot1, ncol=4 )
     } else{
       residplot2 <- ggplot(data=data.frame(RF()$predicted), aes(x=RF()$predicted, y=y-RF()$predicted))+
-        geom_point() + xlab("Predicted") + ylab("Residual") + theme_bw() 
-      residhist2 <- ggplot(data=data.frame(RF()$predicted), aes(x=y-RF()$predicted)) + geom_histogram() + theme_bw() 
+        geom_point() + xlab("Predicted Value") + ylab("Residual") + ggtitle("Residual by Predicted Plot") + theme_bw() 
+      residhist2 <- ggplot(data=data.frame(RF()$predicted), aes(x=y-RF()$predicted)) + geom_histogram() + theme_bw() + ggtitle("Histogram of Residuals")
       QQPlot2 <- ggplot(data=data.frame(RF()$predicted), aes(sample = scale(y-RF()$predicted))) + stat_qq() + stat_qq_line() + 
         xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot") + theme_bw() 
-      p <- grid.arrange(residplot2,residhist2, QQPlot2, ncol=3 )}
+      residbypredplot2 <- ggplot(data=data.frame(RF()$predicted), aes(x=x, y=y-RF()$predicted))+
+        geom_point() + xlab(paste(xvar)) + ylab("Residual") + ggtitle("Residual by Predictor Variable Plot") + theme_bw() 
+      p <- grid.arrange(residplot2,residhist2, QQPlot2, residbypredplot2,ncol=4 )}
     return(p)
   }   
   
@@ -395,9 +428,16 @@ MakePreds <- function(Trainx, LM, RF, var, level, Variables){
   }
 
   
-  CreatePlot <- function(Test, Estimate, Assumptions, range){  
+  CreatePlot <- function(Test, Estimate, Assumptions, range, xvar, yvar){  
+    req(input$Exp_Vars)
+    req(variablevaluedf())
+    req(range)
+    req(Test)
+    req(Estimate)
+    req(input$var)
+    req(Trainx)
     Dataset <- Test %>% filter(x1 >= range[1] & x1 <= range[2]) 
-    p <- ggplot(data=Dataset) + xlab("Explanatory Variable (x)") + ylab("Response Variable (y)") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+    p <- ggplot(data=Dataset) + xlab(paste(xvar)) + ylab(paste(yvar)) + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=1)}else{p}
     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=1)}else{p}
     p <- if("All" %in% Assumptions){p + geom_ribbon(aes( x=x1, y=LMPred, ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
@@ -408,11 +448,11 @@ MakePreds <- function(Trainx, LM, RF, var, level, Variables){
     return(p)
   }   
   
-  residplots <- reactive({ResidPlots(LM=LM(), RF=RF(), Dataset=Train(), RespVar = Resp_Var(), method="LM")})  
+  residplots <- reactive({ResidPlots(LM=LM(), RF=RF(), Dataset=Train(), RespVar = Resp_Var(), method="LM", xvar=input$var)})  
   output$residplot <- renderPlot(residplots())
   Preds <- reactive({MakePreds(Trainx = Trainx(), LM=LM(), RF=RF(), var=var(), level=level(), Variables = variablevaluedf())})
   output$ShowTestData <- renderTable(Preds())    
-  PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
+  PredPlot <- reactive({CreatePlot(Test=Preds(), Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range, xvar=input$var, yvar=input$Resp_Var)})
   output$predplot <- renderPlot(PredPlot())
   
   
