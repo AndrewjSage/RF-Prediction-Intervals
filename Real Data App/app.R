@@ -9,6 +9,7 @@ library(tidyverse)
 library(gridExtra)
 library(mlbench)
 library(broom)
+library(stats)
 
 
 library(mlbench)
@@ -75,14 +76,14 @@ ui <- dashboardPage(
                   
                   fluidRow(
                            column(3,
-                                  checkboxGroupInput("Estimate", h5("Display"), 
+                                  checkboxGroupInput(inputId = "Estimate", label = "Estimates to Display:", 
                                                      choices = list("Linear Model (LM) Estimate" = "LMest", 
                                                                     "Random Forest (RF) Estimate" = "RFest" 
                                                      ),
-                                                     selected = "1")
+                                                     selected = c("LMest", "RFest"))
                            ),
                            column(3,
-                                  checkboxGroupInput("Assumptions", h5("Prediction Interval Assumptions"), 
+                                  checkboxGroupInput(inputId = "Assumptions", label = "Intervals to Display:", 
                                                      choices = list("LM - assumes lin., norm., C.V." = "All", 
                                                                     "RF - assumes sym., C.V." = "Some", 
                                                                     "RF - assumes none of these" = "None"),
@@ -104,7 +105,7 @@ ui <- dashboardPage(
                   )),
 
                        box(width=2,
-                       actionButton("goButton", "Update Table",icon("cloud-upload")),
+                   #    actionButton("goButton", "Display",icon("cloud-upload")),
                        uiOutput("set_variable_values"), title="Explanatory Variable Values")
                         )
                 )
@@ -174,11 +175,6 @@ Exp_Vars <- reactive({
  })
   
   
-#  observeEvent(Resp_Var(), {
-#    req(input$Resp_Var)
-#    choices <- names(dataset() %>% select(-c(input$Resp_Var)))
-#    updateCheckboxGroupInput(session, inputId = "Exp_Vars", choices = choices) 
-#  })
   
 
   output$range_slider <- renderUI({
@@ -186,11 +182,13 @@ Exp_Vars <- reactive({
     req(input$var)
     var <- input$var
     dataset <- data.frame(get(input$dataset, listOfDataframes))
-    Variable <- dataset %>% select(var)
-    tagList(
+    varnum <- which(names(dataset)==var)
+    Variable <- dataset[,varnum]
       sliderInput("range", "range", min=min(Variable), max=max(Variable), 
                   step=(max(Variable)-min(Variable))/50,
-                  value=c(min(Variable), max(Variable))))})
+                  #value=c(min(Variable), max(Variable))
+                  value=c(quantile(Variable, .25), quantile(Variable, .75))
+                  )})
   
 
   method <- reactive({
@@ -237,8 +235,6 @@ Exp_Vars <- reactive({
   
   
   output$Trainx <- renderTable(head(Trainx()))
-  
-  #output$Trainx <- renderTable(RF()$predicted)
   
   
   
@@ -302,13 +298,13 @@ varvals <- reactive({
   
 output$set_variable_values <- renderUI({varvals()})  
 
-
-variablevaluedf <- eventReactive(input$goButton, {
+  
+#variablevaluedf <- eventReactive(input$goButton, {
+variablevaluedf <- reactive({
 var.vals <- varvals()
 varvalsunlisted <- unlist(var.vals)
 variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
 variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=11)]
-
 
 req(input$dataset)
 dataset <- data.frame(get(input$dataset, listOfDataframes))
