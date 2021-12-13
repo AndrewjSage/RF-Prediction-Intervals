@@ -12,17 +12,21 @@ library(broom)
 library(stats)
 
 
-library(mlbench)
-data("BostonHousing")
-Boston_Housing <- BostonHousing %>% select_if(is.numeric)
+library(AmesHousing)
+data("ames_raw")
+ames_raw <- ames_raw %>% mutate(Age = `Yr Sold` - `Year Built`, `Bathrooms` = `Full Bath` + 0.5*`Half Bath`, Bedrooms = `Bedroom AbvGr`)
+Ames_Housing <- ames_raw %>% select(`Lot Area`, `Overall Qual`, `Age`, `Bathrooms` , Bedrooms , Fireplaces, `Garage Area`, `Wood Deck SF`, 'Mo Sold', `SalePrice`)
+#library(mlbench)
+#data("BostonHousing")
+#Boston_Housing <- BostonHousing %>% select_if(is.numeric)
 library(ISLR)
 data("Auto")
 Auto <- Auto %>% select_if(is.numeric)
 data("Carseats")
 Carseats <- Carseats %>% select_if(is.numeric)
 
-listOfDataframes <- list(Boston_Housing, Auto, Carseats)
-names(listOfDataframes) = c("Boston_Housing","Auto","Carseats")
+listOfDataframes <- list(Ames_Housing, Auto, Carseats)
+names(listOfDataframes) = c("Ames_Housing","Auto","Carseats")
 
 
 ui <- dashboardPage(
@@ -39,7 +43,7 @@ ui <- dashboardPage(
       tabItem(tabName = "Data",
               fluidRow(
                 column(4,
-                box( selectInput("dataset", label = "Dataset", choices = c("Boston_Housing" = "Boston_Housing", 
+                box( selectInput("dataset", label = "Dataset", choices = c("Ames Housing" = "Ames_Housing", 
                                                                           "Auto"="Auto", 
                                                                           "Carseats" = "Carseats")),
                      uiOutput("Resp_Var_Choice"),
@@ -74,7 +78,7 @@ ui <- dashboardPage(
                   column(width=12, 
                   fluidRow(plotOutput("predplot", width="100%", height="450px")), 
                  # fluidRow(tableOutput("Trainx")), 
-                #  fluidRow(tableOutput("printvarvalues")),
+                 # fluidRow(tableOutput("printvarvalues")),
                 #  fluidRow(tableOutput("Testx")),
                   
                   
@@ -302,8 +306,10 @@ varvals <- reactive({
       req(input$dataset)
     dataset <- data.frame(get(input$dataset, listOfDataframes))
     
-    my_cols <- input$Exp_Vars
-    dataset <- dataset %>% select(c(input$Exp_Vars, input$Resp_Var))
+    var <- input$var
+    my_cols <- input$Exp_Vars 
+    my_cols <- my_cols[my_cols!=var]
+    dataset <- dataset %>% select(c(my_cols, input$Resp_Var))
     
     ui_elems <- purrr::map(my_cols, ~{
       if (class(dataset[[.x]]) %in% c("factor", "character")){
@@ -342,8 +348,13 @@ variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=
 req(input$dataset)
 dataset <- data.frame(get(input$dataset, listOfDataframes))
 #dataset <- dataset %>% select(c(input$Exp_Vars, input$Resp_Var))
-dataset <- dataset %>% select(c(input$Exp_Vars))
-my_cols <- names(dataset)
+#dataset <- dataset %>% select(c(input$Exp_Vars))
+#my_cols <- names(dataset)
+var <- input$var
+my_cols <- input$Exp_Vars 
+my_cols <- my_cols[my_cols!=var]
+#dataset <- dataset %>% select(c(my_cols))
+
 
 for ( i in 1:length(my_cols)) {
 var <- my_cols[i]
@@ -370,8 +381,11 @@ MakeTest <- function(Trainx, LM, RF, var, level, Variables){
   Entries <- data.frame(t(varvalues))
   names(Entries) <- varnames
   New <- Entries %>% slice(rep(1:1000, each = 1000))
+  New$x <- 1
+  names(New)[names(New)=="x"] <- as.character(var)
   varnum <- which(names(Trainx)==var)
-  New[,varnum] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
+  varnumNew <- which(names(New)==var)
+  New[,varnumNew] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
   Test <- New
   Testx <- New
 return(Testx)
@@ -387,6 +401,7 @@ output$Testx <- renderTable({
   
 MakePreds <- function(Trainx, LM, RF, var, level, Variables){
   req(Variables)
+  req(variablevaluedf())
     Variables <- data.frame(Variables)
     varvalues <- Variables[,2]
     varnames <- Variables[,1]
@@ -395,8 +410,15 @@ MakePreds <- function(Trainx, LM, RF, var, level, Variables){
     Entries <- data.frame(t(varvalues))
     names(Entries) <- varnames
     New <- Entries %>% slice(rep(1:1000, each = 1000))
+    New$x <- 1
+    names(New)[names(New)=="x"] <- as.character(var)
     varnum <- which(names(Trainx)==var)
-    New[,varnum] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
+    varnumNew <- which(names(New)==var)
+    New[,varnumNew] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
+  #  names(Entries) <- varnames
+  #  New <- Entries %>% slice(rep(1:1000, each = 1000))
+  #  varnum <- which(names(Trainx)==var)
+  #  New[,varnum] <- seq(min(Trainx[,varnum]), max(Trainx[,varnum]), by=(max(Trainx[,varnum])-min(Trainx[,varnum]))/(1000-1))
     Test <- New
     Testx <- New
     varnum <- which(names(Test)==var)
