@@ -29,17 +29,7 @@ ui <- fluidPage(
                          "Slight", "Moderate",
                          "Large", "Very Large")
            ),
-           #column(4,
-           sliderTextInput(
-             inputId = "C",
-             label = "Violation of Constant Variance Assumption",
-             grid = TRUE,
-             force_edges = TRUE,
-             choices = c("None",
-                         "Slight", "Moderate",
-                         "Large", "Very Large")
-           ),
-    
+           
            # column(4,
            sliderTextInput(
              inputId = "N",
@@ -49,7 +39,20 @@ ui <- fluidPage(
              choices = c("None",
                          "Slight", "Moderate",
                          "Large", "Very Large")
+           ),
+           
+           #column(4,
+           sliderTextInput(
+             inputId = "C",
+             label = "Violation of Constant Variance Assumption",
+             grid = TRUE,
+             force_edges = TRUE,
+             choices = c("None",
+                         "Slight", "Moderate",
+                         "Large", "Very Large")
            )
+    
+
     ),
     # sliderInput("b", h5("Normality/Symmetry"),
     #             min = 0, max = 1, value = 0, ticks=FALSE),
@@ -111,8 +114,8 @@ server <- function(input, output){
     
     a <- s1*ifelse(L=="None",0, ifelse(L=="Slight", 1, 
                                        ifelse(L=="Moderate", 2, ifelse(L=="Large", 3, 4))))
-    b <-  s2*ifelse(N=="None",0, ifelse(N=="Slight", 0.125, 
-                                        ifelse(N=="Moderate", 0.25, ifelse(N=="Large",0.375,1))))
+    b <-  s2*ifelse(N=="None",0, ifelse(N=="Slight", 0.25, 
+                                        ifelse(N=="Moderate", 0.5, ifelse(N=="Large",0.75,1))))
     c <-  s3*ifelse(C=="None",0, ifelse(C=="Slight", 1, 
                                         ifelse(C=="Moderate", 2, ifelse(C=="Large", 3, 4))))
     
@@ -241,7 +244,7 @@ server <- function(input, output){
     if("Train"%in%data){Dataset <- Dataset %>% filter(Datatype=="Train")}
     # colors <- c("True" = "black", "LMest" = "green", "RFest" = "blue")
     Dataset <- Dataset %>% filter(x1 >= range[1] & x1 <= range[2]) 
-    p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(color="orange") + xlab("Explanatory Variable (x)") + ylab("Response Variable (y)") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+    p <- ggplot(data=Dataset, aes(x=x1, y=y)) + geom_point(color="orange") + xlab("Predictor Variable (x)") + ylab("Response Variable (y)") + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
     p <- if("True"%in% Estimate){p+geom_line(aes(x=x1, y=mx,color="red"), size=4)}else{p}
     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=1)}else{p}
     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=1)}else{p}
@@ -283,7 +286,7 @@ server <- function(input, output){
     QFE_Width <- mean(Dataset$QFEUpr-Dataset$QFELwr)
     Coverage <- c(LM_Coverage, RF_Coverage, QFE_Coverage)
     Mean_Width <- c(LM_Width, RF_Width, QFE_Width)
-    Interval_Method <- c("LM - least flexible - assumes lin., norm., C.V., ", "RF moderately flexible- assumes sym., and C.V. ", "RF - most flexible - assumes none of these")
+    Interval_Method <- c("LM - least flexible - assumes lin., norm., C.V., ", "RF - moderately flexible- assumes sym., and C.V. ", "RF - most flexible - assumes none of these")
     PI_Table <- (data.frame(Interval_Method, Coverage, Mean_Width))
     return(c(PI_Table))
   }

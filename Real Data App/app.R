@@ -16,6 +16,7 @@ library(AmesHousing)
 data("ames_raw")
 ames_raw <- ames_raw %>% mutate(Age = `Yr Sold` - `Year Built`, `Bathrooms` = `Full Bath` + 0.5*`Half Bath`, Bedrooms = `Bedroom AbvGr`)
 Ames_Housing <- ames_raw %>% select(`Lot Area`, `Overall Qual`, `Age`, `Bathrooms` , Bedrooms , Fireplaces, `Garage Area`, `Wood Deck SF`, 'Mo Sold', `SalePrice`)
+Ames_Housing <- Ames_Housing[complete.cases(Ames_Housing),]
 #library(mlbench)
 #data("BostonHousing")
 #Boston_Housing <- BostonHousing %>% select_if(is.numeric)
@@ -127,7 +128,9 @@ ui <- dashboardPage(
 server <- function(input, output, session) {
   
   
-
+  options(scipen = 100)
+  
+  
   #output$varSelection <- renderUI({
   updatevarlist <- reactive({
     req(input$dataset)
@@ -283,18 +286,18 @@ DataDisplay <- function(displaytype){
     if(method=="LM"){
       residplot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$fitted.values, y=LM()$residuals)) +
         geom_point() + xlab("Predicted Value") + ylab("Residual") + ggtitle("Residual by Predicted Plot") + theme_bw()  
-      residhist1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$residuals)) + geom_histogram() + ggtitle("Histogram of Residuals") + theme_bw() 
+      residhist1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=LM()$residuals)) + geom_histogram() + ggtitle("Histogram of Residuals") + xlab("Residual") + theme_bw() 
       QQPlot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(sample = scale(LM()$residuals))) + stat_qq() + stat_qq_line() + 
-        xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot") + theme_bw() 
+        xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("Normal Quantile-Quantile Plot") + theme_bw() 
       residbypredplot1 <- ggplot(data=data.frame(LM()$fitted.values,LM()$residuals), aes(x=x, y=LM()$residuals)) +
         geom_point() + xlab(paste(xvar)) + ylab("Residual") + ggtitle("Residual by Predictor Variable Plot") + theme_bw() 
       p <- grid.arrange(residplot1,residhist1, QQPlot1, residbypredplot1, ncol=4 )
     } else{
       residplot2 <- ggplot(data=data.frame(RF()$predicted), aes(x=RF()$predicted, y=y-RF()$predicted))+
         geom_point() + xlab("Predicted Value") + ylab("Residual") + ggtitle("Residual by Predicted Plot") + theme_bw() 
-      residhist2 <- ggplot(data=data.frame(RF()$predicted), aes(x=y-RF()$predicted)) + geom_histogram() + theme_bw() + ggtitle("Histogram of Residuals")
+      residhist2 <- ggplot(data=data.frame(RF()$predicted), aes(x=y-RF()$predicted)) + geom_histogram() + theme_bw() + ggtitle("Histogram of Residuals") + xlab("Residual") + theme_bw() 
       QQPlot2 <- ggplot(data=data.frame(RF()$predicted), aes(sample = scale(y-RF()$predicted))) + stat_qq() + stat_qq_line() + 
-        xlab("Normal Quantiles") + ylab("Residual Quantiles") + ggtitle("QQ Plot") + theme_bw() 
+        xlab("Normal Quantiles") + ylab("Residual Quantiles") + + ggtitle("Normal Quantile-Quantile Plot") + theme_bw() 
       residbypredplot2 <- ggplot(data=data.frame(RF()$predicted), aes(x=x, y=y-RF()$predicted))+
         geom_point() + xlab(paste(xvar)) + ylab("Residual") + ggtitle("Residual by Predictor Variable Plot") + theme_bw() 
       p <- grid.arrange(residplot2,residhist2, QQPlot2, residbypredplot2,ncol=4 )}
