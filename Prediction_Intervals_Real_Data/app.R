@@ -25,9 +25,28 @@ data("Auto")
 Auto <- Auto %>% select_if(is.numeric)
 data("Carseats")
 Carseats <- Carseats %>% select_if(is.numeric)
+data("College")
+College <- College %>% select_if(is.numeric)
+library(Lock5Data)
+data("AllCountries")
+Countries <- AllCountries %>% select_if(is.numeric)
+data("BodyFat")
+Bodyfat <- BodyFat %>% select_if(is.numeric)
+data(Cars2020)
+Cars_2020 <- Cars2020 %>% select_if(is.numeric)
+data("CollegeScores")
+College <- CollegeScores %>% select_if(is.numeric)
+data("HollywoodMovies")
+Hollywood_Movies <- HollywoodMovies %>% select_if(is.numeric)
+library(AppliedPredictiveModeling)
+data(abalone)
+Abalone <- abalone %>% select_if(is.numeric)
+data(concrete)
+Concrete <- concrete %>% select_if(is.numeric)
 
-listOfDataframes <- list(Ames_Housing, Auto, Carseats)
-names(listOfDataframes) = c("Ames_Housing","Auto","Carseats")
+
+listOfDataframes <- list(Abalone, Ames_Housing, BodyFat , Cars_2020, Carseats, College, Concrete, Countries,  Hollywood_Movies)
+names(listOfDataframes) = c("Abalone",  "Ames_Housing", "Bodyfat" , "Cars_2020" ,"Carseats", "College", "Concrete",  "Countries", "Hollywood_Movies")
 
 
 ui <- dashboardPage(
@@ -44,9 +63,15 @@ ui <- dashboardPage(
       tabItem(tabName = "Data",
               fluidRow(
                 column(4,
-                box( selectInput("dataset", label = "Dataset", choices = c("Ames Housing" = "Ames_Housing", 
-                                                                          "Auto"="Auto", 
-                                                                          "Carseats" = "Carseats")),
+                box( selectInput("dataset", label = "Dataset", choices = c("Abalone" = "Abalone",
+                                                                          "Ames Housing" = "Ames_Housing", 
+                                                                          "Bodyfat"="Bodyfat", 
+                                                                          "Cars_2020"="Cars_2020",
+                                                                          "Carseats" = "Carseats", 
+                                                                          "College" = "College",
+                                                                          "Concrete" = "Concrete",
+                                                                          "Countries"="Countries", 
+                                                                          "Hollywood_Movies"="Hollywood_Movies")),
                      uiOutput("Resp_Var_Choice"),
                      uiOutput("Exp_Vars_Choice")
                      #selectInput("Resp_Var", "Response Variable", character(0)),
@@ -78,9 +103,9 @@ ui <- dashboardPage(
                 box(width=10, title = "Prediction Interval Plot",
                   column(width=12, 
                   fluidRow(plotOutput("predplot", width="100%", height="450px")), 
-                 # fluidRow(tableOutput("Trainx")), 
-                 # fluidRow(tableOutput("printvarvalues")),
-                #  fluidRow(tableOutput("Testx")),
+                  #fluidRow(tableOutput("Trainx")), 
+                  #fluidRow(tableOutput("printvarvalues")),
+                  #fluidRow(tableOutput("Testx")),
                   
                   
                   fluidRow(
@@ -345,8 +370,8 @@ output$set_variable_values <- renderUI({varvals()})
 variablevaluedf <- reactive({
 var.vals <- varvals()
 varvalsunlisted <- unlist(var.vals)
-variablenames <- varvalsunlisted[seq(from=6, to=length(unlist(varvals())), by=11)]
-variablevalues <- varvalsunlisted[seq(from=11, to=length(unlist(varvals())), by=11)]
+variablenames <- varvalsunlisted[which(names(unlist(var.vals))=="children.children")]
+variablevalues <- varvalsunlisted[which(names(unlist(var.vals))=="children.attribs.value")]
 
 req(input$dataset)
 dataset <- data.frame(get(input$dataset, listOfDataframes))
@@ -462,7 +487,7 @@ MakePreds <- function(Trainx, LM, RF, var, level, Variables){
     req(input$var)
     req(Trainx)
     Dataset <- Test %>% filter(x1 >= range[1] & x1 <= range[2]) 
-    p <- ggplot(data=Dataset) + xlab(paste(xvar)) + ylab(paste(yvar)) + theme_bw() #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+    p <- ggplot(data=Dataset) + xlab(paste(xvar)) + ylab(paste(yvar)) + theme_bw() + ylim(c(min(Test$QFELwr,Test$RFLwr,Test$LMLwr), max(Test$QFEUpr,Test$RFUpr,Test$LMUpr))) #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=1)}else{p}
     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=1)}else{p}
     p <- if("All" %in% Assumptions){p + geom_ribbon(aes( x=x1, y=LMPred, ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 
