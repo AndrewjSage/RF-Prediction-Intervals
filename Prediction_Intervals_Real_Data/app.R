@@ -29,15 +29,20 @@ data("College")
 College <- College %>% select_if(is.numeric)
 library(Lock5Data)
 data("AllCountries")
-Countries <- AllCountries %>% select_if(is.numeric)
+Countries <- AllCountries %>% select_if(is.numeric) 
+Countries <- Countries[complete.cases(Countries),]
 data("BodyFat")
 Bodyfat <- BodyFat %>% select_if(is.numeric)
 data(Cars2020)
 Cars_2020 <- Cars2020 %>% select_if(is.numeric)
 data("CollegeScores")
-College <- CollegeScores %>% select_if(is.numeric)
+College <- CollegeScores %>% select_if(is.numeric) %>% select(AdmitRate, MidACT, AvgSAT, Enrollment, White,
+                                                              Black, Hispanic, Asian, Other, Cost, 
+                                                              FacSalary, Pell, CompRate, Debt, FirstGen, MedIncome)
+College <- College[complete.cases(College),]
 data("HollywoodMovies")
 Hollywood_Movies <- HollywoodMovies %>% select_if(is.numeric)
+Hollywood_Movies <- Hollywood_Movies[complete.cases(Hollywood_Movies), ]
 library(AppliedPredictiveModeling)
 data(abalone)
 Abalone <- abalone %>% select_if(is.numeric)
@@ -47,7 +52,16 @@ Concrete <- concrete %>% select_if(is.numeric)
 
 listOfDataframes <- list(Abalone, Ames_Housing, BodyFat , Cars_2020, Carseats, College, Concrete, Countries,  Hollywood_Movies)
 names(listOfDataframes) = c("Abalone",  "Ames_Housing", "Bodyfat" , "Cars_2020" ,"Carseats", "College", "Concrete",  "Countries", "Hollywood_Movies")
-
+packages <- c("AppliedPredictiveModeling", "AmesHousing", "Lock5Data", "Lock5Data", "ISLR", "Lock5Data", "AppliedPredictiveModeling", "Lock5Data", "Lock5Data")
+datasets <- c("Abalone",
+              "Ames_Housing", 
+              "Bodyfat", 
+              "Cars_2020",
+              "Carseats", 
+              "College",
+              "Concrete",
+              "Countries", 
+              "Hollywood_Movies")
 
 ui <- dashboardPage(
   dashboardHeader(title = "Basic dashboard"),
@@ -85,7 +99,8 @@ ui <- dashboardPage(
                                                                               selected="summarytable"),
                       uiOutput("Table_or_Summary"), width=30
                       ), 
-                         box(title="Coefficients Table", tableOutput("model_summary"), width=30)
+                         box(title="Coefficients Table", tableOutput("model_summary"), width=30), 
+                  textOutput("Data_Source")
                        )
                 )
               ),
@@ -114,7 +129,8 @@ ui <- dashboardPage(
                                                      choices = list("Linear Model (LM) Estimate" = "LMest", 
                                                                     "Random Forest (RF) Estimate" = "RFest" 
                                                      ),
-                                                     selected = c("LMest", "RFest"))
+                                                     selected = c("LMest", "RFest")),
+                                  
                            ),
                            column(3,
                                   checkboxGroupInput(inputId = "Assumptions", label = "Intervals to Display:", 
@@ -134,7 +150,8 @@ ui <- dashboardPage(
                                   sliderInput("level", "Desired Coverage Level:",
                                               min = 0.7, max = 0.95, step=0.05,
                                               value = 0.9)
-                           )
+                           ),
+                           textOutput("References")
                        )
                   )),
 
@@ -142,6 +159,7 @@ ui <- dashboardPage(
                    #    actionButton("goButton", "Display",icon("cloud-upload")),
                        uiOutput("set_variable_values"), title="Explanatory Variable Values")
                         )
+              
                 )
       )
 )
@@ -425,6 +443,17 @@ output$Testx <- renderTable({
   req(variablevaluedf)
   return(head(Testxset()))})  
   
+Get_Package <- reactive({
+  datasetname <- input$dataset
+  Package <- packages[which(datasets==datasetname)]
+  return(Package)
+})
+
+output$Data_Source <- renderText({paste("Data come from the", Get_Package() , "R Package")})
+output$References <- renderText({"For more information on the random forest prediction interval methods, see: \n Zhang, H., Zimmerman, J., Nettleton, D., & Nordman, D. J. (2019)., 'Random Forest Prediction Intervals'. The American Statistician, and \n Lu, B., & Hardin, J. (2021). 'A Unified Framework for Random Forest Prediction Error Estimation.' J. Mach. Learn. Res., 22, 8-1."})
+#output$References <- renderText({"For more information"})
+
+
   
   
 MakePreds <- function(Trainx, LM, RF, var, level, Variables){
@@ -487,7 +516,8 @@ MakePreds <- function(Trainx, LM, RF, var, level, Variables){
     req(input$var)
     req(Trainx)
     Dataset <- Test %>% filter(x1 >= range[1] & x1 <= range[2]) 
-    p <- ggplot(data=Dataset) + xlab(paste(xvar)) + ylab(paste(yvar)) + theme_bw() + ylim(c(min(Test$QFELwr,Test$RFLwr,Test$LMLwr), max(Test$QFEUpr,Test$RFUpr,Test$LMUpr))) #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
+    p <- ggplot(data=Dataset) + xlab(paste(xvar)) + ylab(paste(yvar)) + theme_bw() + 
+      ylim(c(min(Dataset$QFELwr,Dataset$RF2Lwr,Dataset$LMLwr, na.rm=TRUE), max(Dataset$QFEUpr,Dataset$RF2Upr,Dataset$LMUpr, na.rm=TRUE))) #+ theme(legend.position = "none") #+ ylim(2*min(Dataset$y),2*max(Dataset$y)) + theme_bw()
     p <- if("RFest"%in% Estimate){p+geom_line(aes(x=x1, y=RFPred, color="blue"), size=1)}else{p}
     p <- if("LMest"%in% Estimate){p+geom_line(aes(x=x1, y=LMPred, color="green"), size=1)}else{p}
     p <- if("All" %in% Assumptions){p + geom_ribbon(aes( x=x1, y=LMPred, ymin=LMLwr, ymax=LMUpr), linetype=2, alpha=0.5, color="grey", fill="grey")}else{p} 

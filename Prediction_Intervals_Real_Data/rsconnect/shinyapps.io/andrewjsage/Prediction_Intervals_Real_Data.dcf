@@ -5,9 +5,9 @@ account: andrewjsage
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5375631
-bundleId: 5414627
+bundleId: 5570497
 url: https://andrewjsage.shinyapps.io/Prediction_Intervals_Real_Data/
-when: 1640700919.87483
-lastSyncTime: 1640700919.87484
+when: 1644613477.29914
+lastSyncTime: 1644613477.29915
 asMultiple: FALSE
 asStatic: FALSE
