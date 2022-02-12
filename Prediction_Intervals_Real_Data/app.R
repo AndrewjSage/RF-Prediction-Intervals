@@ -64,7 +64,7 @@ datasets <- c("Abalone",
               "Hollywood_Movies")
 
 ui <- dashboardPage(
-  dashboardHeader(title = "Basic dashboard"),
+  dashboardHeader(title = "Prediction Intervals for Real Data"),
   dashboardSidebar(
     sidebarMenu(
       menuItem("Data", tabName = "Data", icon = icon("dashboard")),
