@@ -1,3 +1,4 @@
+#
 # simulation app
 # Shiny App Created by Andrew Sage
 
@@ -49,8 +50,8 @@ ui <- fluidPage(
                          "Slight", "Moderate",
                          "Large", "Very Large")
            )
-    
-
+           
+           
     ),
     # sliderInput("b", h5("Normality/Symmetry"),
     #             min = 0, max = 1, value = 0, ticks=FALSE),
@@ -58,11 +59,10 @@ ui <- fluidPage(
     #sliderInput("c", h5("Constant Variance"),
     #            min = 0, max = 5, value = 0, ticks=FALSE)),
     column(2, 
- 
+           
            checkboxGroupInput("LMSettings", h5("Linear Model Settings"), 
-                              choices = list("Use Log(Y) Transformation" = "Log",
-                                             "Include Quadratic Term" = "Quad", 
-                                             "Include Cubic Term" = "Cubic" 
+                              choices = list("Include Quadratic Term" = "Quad",
+                                             "Include Cubic Term" = "Cubic"
                               ),
            ),           
            
@@ -88,7 +88,7 @@ ui <- fluidPage(
                               selected = 1)
     ),
     
-
+    
     column(2,
            actionButton("Regenerate", "Regenerate Data"),
            downloadButton("downloadData", "Download Data"),
@@ -112,7 +112,7 @@ ui <- fluidPage(
     )
     
   )
-  )
+)
 # Define server logic required to draw a histogram
 server <- function(input, output){
   
@@ -218,7 +218,7 @@ server <- function(input, output){
       LM_PI_Train <- exp(predict(LM, newdata=Train, interval="prediction", level=1-alpha)) 
       Train$LMLwr <- LM_PI_Train[,2] 
       Train$LMUpr <- LM_PI_Train[,3]}
-
+    
     Trainx <- data.frame(Train$x1)
     names(Trainx) <- "x1"
     Testx <- data.frame(Test$x1)
@@ -335,11 +335,11 @@ server <- function(input, output){
   output$PItable <- renderTable(EvaluatePI(Dataset=Preds(), range=input$range))
   #output$text <- renderText(paste("Linear Model MSPE=",MSPE()[[1]], "Random Forest MSPE=", MSPE()[[2]]))
   #output$table <- renderTable(SimulationRes()[[2]])
- 
+  
   
   output$References <- renderText({"For more information on the random forest prediction interval methods, see: \n Zhang, H., Zimmerman, J., Nettleton, D., & Nordman, D. J. (2019)., 'Random Forest Prediction Intervals'. The American Statistician, and \n Lu, B., & Hardin, J. (2021). 'A Unified Framework for Random Forest Prediction Error Estimation.' J. Mach. Learn. Res., 22, 8-1."})
-
-
+  
+  
   
   # Downloadable csv of selected dataset ----
   output$downloadData <- downloadHandler(
@@ -356,8 +356,8 @@ server <- function(input, output){
   
   
   
-    
-   
+  
+  
 }
 
 
