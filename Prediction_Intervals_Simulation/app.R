@@ -143,14 +143,14 @@ server <- function(input, output){
     x1 <- x1[sample(1:length(x1))]
     x1 <- x1[1:(ntrain+ntest)]
     meanfunc <- function(x1){
-      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5)
+      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) 
       return(mx)
     }
     mx <- meanfunc(x1)
     e1 <- rnorm(ntrain + ntest, 0, 1) +  c*rnorm(ntrain + ntest, 0, abs(x1))
     e2 <- (c*abs(x1)/4+1)*(rexp(ntrain + ntest, rate=1) - 1)
     e <- (1-b)*e1 + b*e2 # convex combination of errors
-    y <- mx + e  #e + e*(c*(abs(x1))) 
+    y <- mx + e  #e + e*(c*(abs(x1)))
     
     
     Data <- data.frame(x1, y)
@@ -173,16 +173,34 @@ server <- function(input, output){
   }
   
   
-  CalcPreds <- function(Dataset, RF, level){
+  CalcPreds <- function(Dataset, RF, level, LMSettings){
     # Intervals from Linear Model
     # Assume linearity, normality, constant variance
     alpha = 1-level
     Train <- Dataset %>% filter(Datatype=="Train")
     Test <- Dataset %>% filter(Datatype=="Test")
     LM <- lm(data=Train, y~x1)
-    LMPred <- predict(LM, newdata=Test) 
+    if("Quad"%in%LMSettings){
+      LM <- lm(data=Train, y~x1 + I(x1^2))
+    }
+    if("Cubic"%in%LMSettings){
+      LM <- lm(data=Train, y~x1 + I(x1^2) + I(x1^3))
+    }
+    LMPred <- predict(LM, newdata=Test)
     RMSPE_LM <- sqrt(mean((LMPred-Test$y)^2))
     LM_PI_Test <- predict(LM, newdata=Test, interval="prediction", level=1-alpha) 
+    if("Log"%in%LMSettings){
+      LM <- lm(data=Train, log(y)~x1)
+      if("Quad"%in%LMSettings){
+        LM <- lm(data=Train, log(y)~x1 + I(x1^2))
+      }
+      if("Cubic"%in%LMSettings){
+        LM <- lm(data=Train, log(y)~x1 + I(x1^2) + I(x1^3))
+      }
+      LMPred <- exp(predict(LM, newdata=Test))
+      RMSPE_LM <- sqrt(mean(LMPred-Test$y)^2)
+      LM_PI_Test <- exp(predict(LM, newdata=Test, interval="prediction", level=1-alpha)) 
+    }
     LM_PI_Test <- data.frame(LM_PI_Test)
     LM_Contains <- (Test$y >= LM_PI_Test[,2]) & (Test$y <= LM_PI_Test[,3])
     Cov_LM <- mean(LM_Contains)
@@ -195,7 +213,12 @@ server <- function(input, output){
     LM_PI_Train <- predict(LM, newdata=Train, interval="prediction", level=1-alpha) 
     Train$LMLwr <- LM_PI_Train[,2] 
     Train$LMUpr <- LM_PI_Train[,3]
-    
+    if("Log"%in%LMSettings){
+      Train$LMPred <- exp(predict(LM, newdata=Train)) 
+      LM_PI_Train <- exp(predict(LM, newdata=Train, interval="prediction", level=1-alpha)) 
+      Train$LMLwr <- LM_PI_Train[,2] 
+      Train$LMUpr <- LM_PI_Train[,3]}
+
     Trainx <- data.frame(Train$x1)
     names(Trainx) <- "x1"
     Testx <- data.frame(Test$x1)
@@ -304,7 +327,7 @@ server <- function(input, output){
   }
   
   SimulationRes <- reactive({Simulation(L=input$L,N=input$N,C=input$C, action=input$Regenerate)})
-  Preds <- reactive({CalcPreds(Dataset=SimulationRes()[[1]], RF=SimulationRes()[[2]], level=input$level)})
+  Preds <- reactive({CalcPreds(Dataset=SimulationRes()[[1]], RF=SimulationRes()[[2]], level=input$level, LMSettings = input$LMSettings)})
   Plot <- reactive({CreatePlot(Dataset=Preds(), data=input$data, Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$plot <- renderPlot(Plot())
   #MSPE <- reactive(CalculateMSPE(Dataset=SimulationRes(), range=input$range))
