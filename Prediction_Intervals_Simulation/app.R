@@ -15,7 +15,7 @@ ui <- fluidPage(
   titlePanel("Prediction Intervals via Linear Model and Random Forest"),
   
   fluidRow(
-    column(4, 
+    column(3, 
            #sliderInput("a", h5("Linearity"),
            #            min = 0, max = 5, value = 0, step=0.1, ticks=FALSE),
            sliderTextInput(
@@ -58,10 +58,15 @@ ui <- fluidPage(
     #sliderInput("c", h5("Constant Variance"),
     #            min = 0, max = 5, value = 0, ticks=FALSE)),
     column(2, 
-           selectInput("data", h5("Display"), 
-                       choices = list("Training Data" = "Train", 
-                                      "Test Data" = "Test"),
-                       selected = "Train"), 
+ 
+           checkboxGroupInput("LMSettings", h5("Linear Model Settings"), 
+                              choices = list("Use Log(Y) Transformation" = "Log",
+                                             "Include Quadratic Term" = "Quad", 
+                                             "Include Cubic Term" = "Cubic" 
+                              ),
+           ),           
+           
+           
            sliderInput("level", "Desired Coverage Level:",
                        min = 0.7, max = 0.95, step=0.05,
                        value = 0.9),
@@ -69,7 +74,7 @@ ui <- fluidPage(
                        min = -1, max = 1, step=0.05,
                        value = c(-1,1))
     ), 
-    column(4,
+    column(3,
            checkboxGroupInput("Estimate", h5("Display"), 
                               choices = list("True Expected Response" = "True",
                                              "Linear Model (LM) Estimate" = "LMest", 
@@ -82,9 +87,15 @@ ui <- fluidPage(
                                              "RF - most flexible -assumes none of these" = "None"),
                               selected = 1)
     ),
-    column(1,
+    
+
+    column(2,
            actionButton("Regenerate", "Regenerate Data"),
-           downloadButton("downloadData", "Download Data")
+           downloadButton("downloadData", "Download Data"),
+           selectInput("data", h5("Display"), 
+                       choices = list("Training Data" = "Train", 
+                                      "Test Data" = "Test"),
+                       selected = "Train"),
            
     )
   ),
