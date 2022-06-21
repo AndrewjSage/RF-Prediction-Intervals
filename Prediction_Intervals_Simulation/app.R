@@ -1,7 +1,6 @@
 # simulation app
 # Shiny App Created by Andrew Sage
 
-
 # Load packages
 library(shiny)
 library(tidyverse)
@@ -84,7 +83,9 @@ ui <- fluidPage(
                               selected = 1)
     ),
     column(1,
-           actionButton("Regenerate", "Regenerate Data")
+           actionButton("Regenerate", "Regenerate Data"),
+           downloadButton("downloadData", "Download Data")
+           
     )
   ),
   fluidRow(
@@ -303,7 +304,25 @@ server <- function(input, output){
  
   
   output$References <- renderText({"For more information on the random forest prediction interval methods, see: \n Zhang, H., Zimmerman, J., Nettleton, D., & Nordman, D. J. (2019)., 'Random Forest Prediction Intervals'. The American Statistician, and \n Lu, B., & Hardin, J. (2021). 'A Unified Framework for Random Forest Prediction Error Estimation.' J. Mach. Learn. Res., 22, 8-1."})
+
+
   
+  # Downloadable csv of selected dataset ----
+  output$downloadData <- downloadHandler(
+    filename = function(){"Dataset.csv"}, 
+    content = function(file) {
+      write.csv(SimulationRes()[[1]][,c(1,2,4,5)], file, row.names = FALSE)
+    }
+  )
+  
+  
+  
+  
+  
+  
+  
+  
+    
    
 }
 
