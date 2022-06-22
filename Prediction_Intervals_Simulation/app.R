@@ -62,7 +62,8 @@ ui <- fluidPage(
            
            checkboxGroupInput("LMSettings", h5("Linear Model Settings"), 
                               choices = list("Include Quadratic Term" = "Quad",
-                                             "Include Cubic Term" = "Cubic"
+                                             "Include Cubic Term" = "Cubic", 
+                                             "Use Log(Y) Transformation" = "Log"
                               ),
            ),           
            
@@ -143,7 +144,7 @@ server <- function(input, output){
     x1 <- x1[sample(1:length(x1))]
     x1 <- x1[1:(ntrain+ntest)]
     meanfunc <- function(x1){
-      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) 
+      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) + 100 + exp(3*x1)
       return(mx)
     }
     mx <- meanfunc(x1)
