@@ -60,7 +60,7 @@ ui <- fluidPage(
     #            min = 0, max = 5, value = 0, ticks=FALSE)),
     column(2, 
            
-           checkboxGroupInput("LMSettings", h5("Linear Model Settings"), 
+           checkboxGroupInput("LMSettings", h5("Regression Model Settings"), 
                               choices = list("Include Quadratic Term" = "Quad",
                                              "Include Cubic Term" = "Cubic"
                               ),
@@ -90,12 +90,12 @@ ui <- fluidPage(
     
     
     column(2,
-           actionButton("Regenerate", "Regenerate Data"),
-           downloadButton("downloadData", "Download Data"),
            selectInput("data", h5("Display"), 
                        choices = list("Training Data" = "Train", 
                                       "Test Data" = "Test"),
                        selected = "Train"),
+           actionButton("Regenerate", "Regenerate Data"),
+           downloadButton("downloadData", "Download Data"),
            
     )
   ),
