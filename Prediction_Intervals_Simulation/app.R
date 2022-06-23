@@ -62,8 +62,7 @@ ui <- fluidPage(
            
            checkboxGroupInput("LMSettings", h5("Linear Model Settings"), 
                               choices = list("Include Quadratic Term" = "Quad",
-                                             "Include Cubic Term" = "Cubic", 
-                                             "Use Log(Y) Transformation" = "Log"
+                                             "Include Cubic Term" = "Cubic"
                               ),
            ),           
            
@@ -88,13 +87,7 @@ ui <- fluidPage(
                                              "RF - most flexible -assumes none of these" = "None"),
                               selected = 1)
     ),
-    column(3,
-           checkboxGroupInput("LinViol", h5("Type of Linearity Violation"), 
-                              choices = list("Exponential Trend" = "Exp",
-                                             "Polynomial Trend" = "Poly", 
-                                             "Discontinuity" = "Disc" 
-                              ),
-    )),
+    
     
     column(2,
            actionButton("Regenerate", "Regenerate Data"),
@@ -125,7 +118,7 @@ server <- function(input, output){
   
   
   
-  Simulation <- function(L,N,C, action, LinViol){
+  Simulation <- function(L,N,C, action){
     
     s1 <-1  
     s2 <-1  
@@ -137,11 +130,6 @@ server <- function(input, output){
                                         ifelse(N=="Moderate", 0.5, ifelse(N=="Large",0.75,1))))
     c <-  s3*ifelse(C=="None",0, ifelse(C=="Slight", 1, 
                                         ifelse(C=="Moderate", 2, ifelse(C=="Large", 3, 4))))
-    
-    a1 <- ifelse("Exp" %in% LinViol, 1, 0)
-    a2 <- ifelse("Poly" %in% LinViol, 1, 0)
-    a3 <- ifelse("Disc" %in% LinViol, 1, 0)
-
     
     ntrain <- 1000
     ntest <- 1000
@@ -155,8 +143,7 @@ server <- function(input, output){
     x1 <- x1[sample(1:length(x1))]
     x1 <- x1[1:(ntrain+ntest)]
     meanfunc <- function(x1){
-        mx <- a1*exp(a*x1)
-      #  mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) + 100 + exp(3*x1)
+      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) 
       return(mx)
     }
     mx <- meanfunc(x1)
@@ -339,7 +326,7 @@ server <- function(input, output){
     return(c(PI_Table))
   }
   
-  SimulationRes <- reactive({Simulation(L=input$L,N=input$N,C=input$C, action=input$Regenerate, LinViol=input$LinViol)})
+  SimulationRes <- reactive({Simulation(L=input$L,N=input$N,C=input$C, action=input$Regenerate)})
   Preds <- reactive({CalcPreds(Dataset=SimulationRes()[[1]], RF=SimulationRes()[[2]], level=input$level, LMSettings = input$LMSettings)})
   Plot <- reactive({CreatePlot(Dataset=Preds(), data=input$data, Estimate=input$Estimate, Assumptions=input$Assumptions, range=input$range)})
   output$plot <- renderPlot(Plot())
