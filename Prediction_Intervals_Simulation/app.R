@@ -61,7 +61,8 @@ ui <- fluidPage(
     column(2, 
            
            checkboxGroupInput("LMSettings", h5("Regression Model Settings"), 
-                              choices = list("Include Quadratic Term" = "Quad",
+                              choices = list("Model Log(Y)" = "Log",
+                                            "Include Quadratic Term" = "Quad",
                                              "Include Cubic Term" = "Cubic"
                               ),
            ),           
@@ -143,7 +144,7 @@ server <- function(input, output){
     x1 <- x1[sample(1:length(x1))]
     x1 <- x1[1:(ntrain+ntest)]
     meanfunc <- function(x1){
-      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) 
+      mx <- 5*x1 + a*x1^2 + a*(x1-0.3)^5*(s1*a>1.5) + a*(x1>0)*(s1*a>2.5) - a*(abs(x1)<0.5)*(s1*a>3.5) + (a>0)*exp(1.5*x1)/3 +50
       return(mx)
     }
     mx <- meanfunc(x1)
